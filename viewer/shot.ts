@@ -1,7 +1,7 @@
 // Render a checkpoint to a PNG. The surface this project is looked at through.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { scene, WIDTH, HEIGHT, type Frame } from "./scene.js";
+import { scene, sceneMap, sceneZoom, WIDTH, HEIGHT, type Frame } from "./scene.js";
 import { Canvas, rasterise } from "./raster.js";
 
 const args = new Map<string, string>();
@@ -34,9 +34,14 @@ for (const i of picked) {
   const history = upto
     .filter((_, n) => n % stride === 0)
     .map((e) => JSON.parse(readFileSync(join(run, e.file), "utf8")) as Frame);
+  const view = args.get("view") ?? "dash";
+  const zoomAt = Number(args.get("place") ?? 0);
+  const ops =
+    view === "map" ? sceneMap(frame, history) : view === "zoom" ? sceneZoom(frame, zoomAt, history) : scene(frame, history);
   const canvas = new Canvas(WIDTH, HEIGHT);
-  rasterise(canvas, scene(frame, history));
-  const file = join(out, `f${String(i).padStart(5, "0")}-t${frame.tick}.png`);
+  rasterise(canvas, ops);
+  const tag = view === "zoom" ? `zoom${zoomAt}` : view;
+  const file = join(out, `${tag}-f${String(i).padStart(5, "0")}-t${frame.tick}.png`);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, canvas.png());
   console.log(file);

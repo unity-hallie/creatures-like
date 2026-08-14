@@ -11,7 +11,7 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Ecosystem } from "../src/ecology.js";
 import { Geography, type Route } from "../src/geography.js";
-import { COMPLETE_ROTTER, FUNGUS, GRASS, LEGUME, MOSS, SAPROPHYTE, TREE } from "../src/flora.js";
+import { COMPLETE_ROTTER, GRASS, LEGUME, MOSS, SAPROPHYTE, TREE } from "../src/flora.js";
 import { CHEMS } from "../src/genome.js";
 
 const args = new Map<string, string>();
@@ -42,7 +42,7 @@ function buildWorld(): Geography {
       plants: 30, fungi: 12, grazers: 12, width: 24, volume: 130, soilAmmonia: 0.25 }),
     new Ecosystem({ seed: SEED + 5, name: "wetland", latitude: -0.6, plantGenome: MOSS, fungusGenome: SAPROPHYTE,
       plants: 28, fungi: 14, grazers: 6, width: 24, volume: 110, soilAmmonia: 0.8 }),
-    new Ecosystem({ seed: SEED + 6, name: "scrub", latitude: -0.95, plantGenome: LEGUME, fungusGenome: FUNGUS,
+    new Ecosystem({ seed: SEED + 6, name: "scrub", latitude: -0.95, plantGenome: LEGUME, fungusGenome: COMPLETE_ROTTER,
       plants: 24, fungi: 10, grazers: 8, width: 24, volume: 95, soilAmmonia: 0.05 }),
   ];
 

@@ -251,3 +251,209 @@ export function scene(frame: Frame, history: Frame[] = []): Op[] {
 
   return ops;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE MAP. Places in space, routes as real links, wind as arrows along them.
+//
+// The column dashboard hides the one thing that matters most about this world: it is
+// COUPLED. Run 02 went extinct because a single place could not rot its own fruit, and the
+// shared atmosphere carried that failure to five places that could. In columns that reads
+// as six unrelated obituaries. On a map it reads as one event with a source.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function arrow(ops: Op[], x1: number, y1: number, x2: number, y2: number, dim: number): void {
+  ops.push({ op: "line", x1, y1, x2, y2, dim });
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  const head = 7;
+  ops.push({ op: "line", x1: x2, y1: y2, x2: x2 - Math.cos(a - 0.4) * head, y2: y2 - Math.sin(a - 0.4) * head, dim });
+  ops.push({ op: "line", x1: x2, y1: y2, x2: x2 - Math.cos(a + 0.4) * head, y2: y2 - Math.sin(a + 0.4) * head, dim });
+}
+
+function ring(ops: Op[], cx: number, cy: number, r: number, dim: number, steps = 40): void {
+  for (let i = 0; i < steps; i++) {
+    const a1 = (i / steps) * Math.PI * 2;
+    const a2 = ((i + 1) / steps) * Math.PI * 2;
+    ops.push({
+      op: "line",
+      x1: cx + Math.cos(a1) * r, y1: cy + Math.sin(a1) * r,
+      x2: cx + Math.cos(a2) * r, y2: cy + Math.sin(a2) * r,
+      dim,
+    });
+  }
+}
+
+export function sceneMap(frame: Frame, history: Frame[] = []): Op[] {
+  const ops: Op[] = [];
+  const cx = WIDTH / 2 - 130;
+  const cy = HEIGHT / 2 + 10;
+  const R = 250;
+
+  ops.push({ op: "text", x: COL_X, y: 22, s: `MAP  TICK ${frame.tick}`, scale: 2 });
+  ops.push({ op: "text", x: COL_X, y: 46, s: `YEAR ${frame.yearPhase.toFixed(2)}  C ${frame.totals.carbon.toFixed(1)}  N ${frame.totals.nitrogen.toFixed(1)}  MIG ${frame.migrations}`, dim: 0.8 });
+  ops.push({ op: "line", x1: COL_X, y1: 58, x2: WIDTH - COL_X, y2: 58, dim: 0.4 });
+
+  const at = (i: number) => {
+    const a = (i / frame.places.length) * Math.PI * 2 - Math.PI / 2;
+    return { x: cx + Math.cos(a) * R, y: cy + Math.sin(a) * R * 0.72 };
+  };
+
+  // routes first, so nodes sit on top
+  const peak = Math.max(1e-9, ...frame.routes.map((r) => Math.abs(r.gradient)));
+  for (const route of frame.routes) {
+    const a = at(route.from);
+    const b = at(route.to);
+    const from = route.gradient >= 0 ? a : b;
+    const to = route.gradient >= 0 ? b : a;
+    const strength = Math.abs(route.gradient) / peak;
+    // the arrow shows which way the air is actually going, and how hard
+    const mx = from.x + (to.x - from.x) * (0.25 + 0.5 * strength);
+    const my = from.y + (to.y - from.y) * (0.25 + 0.5 * strength);
+    ops.push({ op: "line", x1: a.x, y1: a.y, x2: b.x, y2: b.y, dim: 0.3 });
+    arrow(ops, from.x + (to.x - from.x) * 0.22, from.y + (to.y - from.y) * 0.22, mx, my, 0.4 + 0.6 * strength);
+    const lx = (a.x + b.x) / 2;
+    const ly = (a.y + b.y) / 2;
+    ops.push({ op: "text", x: lx - 10, y: ly - 8, s: route.gradient.toFixed(2), dim: 0.65 });
+  }
+
+  frame.places.forEach((place, i) => {
+    const p = at(i);
+    const alive = place.alive.plants + place.alive.fungi + place.alive.grazers;
+    const dead = alive === 0;
+
+    // size carries standing biomass; the ring carries whether anything is home
+    const r = 16 + Math.min(34, alive * 0.9);
+    ring(ops, p.x, p.y, r, dead ? 0.35 : 0.95);
+    if (!dead) {
+      // inner rings: one per kingdom, so composition reads without labels
+      ring(ops, p.x, p.y, Math.max(3, r * 0.66), 0.6);
+      ring(ops, p.x, p.y, Math.max(2, r * 0.33), 0.45);
+    } else {
+      ops.push({ op: "line", x1: p.x - r, y1: p.y - r, x2: p.x + r, y2: p.y + r, dim: 0.7 });
+      ops.push({ op: "line", x1: p.x + r, y1: p.y - r, x2: p.x - r, y2: p.y + r, dim: 0.7 });
+    }
+
+    // fire ring: burning patches as ticks around the edge
+    const burning = place.patches.filter((q) => q.burning > 0).length;
+    for (let f = 0; f < burning; f++) {
+      const a = (f / Math.max(1, place.patches.length)) * Math.PI * 2;
+      ops.push({ op: "line", x1: p.x + Math.cos(a) * (r + 3), y1: p.y + Math.sin(a) * (r + 3),
+        x2: p.x + Math.cos(a) * (r + 9), y2: p.y + Math.sin(a) * (r + 9), w: 2 });
+    }
+
+    const lx = p.x - 30;
+    const ly = p.y + r + 8;
+    ops.push({ op: "text", x: lx, y: ly, s: place.name.toUpperCase(), dim: dead ? 0.6 : 1 });
+    ops.push({ op: "text", x: lx, y: ly + 10, s: `${place.alive.plants}/${place.alive.fungi}/${place.alive.grazers}`, dim: 0.8 });
+    ops.push({ op: "text", x: lx, y: ly + 20, s: `o2 ${(place.air.O2 ?? 0).toFixed(0)} co2 ${(place.air.CO2 ?? 0).toFixed(0)}`, dim: 0.65 });
+    // the carbon this place is SITTING ON — the thing that killed run 02
+    const locked = place.soil.starch + place.soil.cellulose + place.soil.lignin;
+    ops.push({ op: "text", x: lx, y: ly + 30, s: `locked ${locked.toFixed(0)}`, dim: locked > 40 ? 1 : 0.5 });
+    if (locked > 40) {
+      ops.push({ op: "fill", x: lx - 4, y: ly + 29, w: 3, h: 7, dim: 1 });
+    }
+  });
+
+  // ── world panel on the right: where the carbon actually is ────────────────
+  const px = WIDTH - 290;
+  let py = 90;
+  ops.push({ op: "text", x: px, y: py, s: "WHERE THE CARBON IS" });
+  py += 16;
+  const inAir = frame.places.reduce((a, p) => a + (p.air.CO2 ?? 0), 0);
+  const inGround = frame.places.reduce((a, p) => a + (p.soil.starch + p.soil.cellulose + p.soil.lignin) * 6, 0);
+  const scale = Math.max(inAir, inGround, 1) * 1.1;
+  bar(ops, px, py, 150, inAir, scale, `air ${inAir.toFixed(0)}`);
+  py += 16;
+  bar(ops, px, py, 150, inGround, scale, `ground ${inGround.toFixed(0)}`);
+  py += 26;
+
+  ops.push({ op: "text", x: px, y: py, s: "WORLD HISTORY", dim: 0.8 });
+  py += 12;
+  const past = [...history, frame];
+  spark(ops, px, py, 150, 30, past.map((f) => f.places.reduce((a, p) => a + p.alive.plants + p.alive.grazers + p.alive.fungi, 0)), "alive");
+  py += 38;
+  spark(ops, px, py, 150, 30, past.map((f) => f.places.reduce((a, p) => a + (p.air.CO2 ?? 0), 0)), "co2");
+  py += 38;
+  spark(ops, px, py, 150, 30, past.map((f) => f.places.reduce((a, p) => a + (p.air.O2 ?? 0), 0)), "o2");
+  py += 38;
+  spark(ops, px, py, 150, 30, past.map((f) => f.places.reduce((a, p) => a + p.ignitions, 0)), "fires");
+  return ops;
+}
+
+/** ZOOM: one place, close up — every patch drawn individually. */
+export function sceneZoom(frame: Frame, index: number, history: Frame[] = []): Op[] {
+  const ops: Op[] = [];
+  const place = frame.places[index];
+  if (!place) return ops;
+
+  ops.push({ op: "text", x: COL_X, y: 22, s: `${place.name.toUpperCase()}  TICK ${frame.tick}`, scale: 2 });
+  ops.push({
+    op: "text", x: COL_X, y: 48, dim: 0.8,
+    s: `lat ${place.latitude.toFixed(2)}  T ${place.temperature.toFixed(1)}  P ${place.pressure.toFixed(0)}  sun ${place.light.toFixed(2)}`,
+  });
+  ops.push({ op: "line", x1: COL_X, y1: 60, x2: WIDTH - COL_X, y2: 60, dim: 0.4 });
+
+  // each patch as a tall column: fuel above the line, fruit below, fire as a cross
+  const n = place.patches.length;
+  const cw = Math.floor((WIDTH - 2 * COL_X - 300) / n);
+  const base = 330;
+  const fuelScale = Math.max(0.6, ...place.patches.map((q) => q.fuel));
+  const fruitScale = Math.max(0.3, ...place.patches.map((q) => q.starch));
+
+  ops.push({ op: "text", x: COL_X, y: 80, s: `PATCHES (fuel up, fruit down)  fuel max ${fuelScale.toFixed(1)}  fruit max ${fruitScale.toFixed(1)}`, dim: 0.7 });
+  ops.push({ op: "line", x1: COL_X, y1: base, x2: COL_X + cw * n, y2: base, dim: 0.6 });
+
+  place.patches.forEach((patch, i) => {
+    const x = COL_X + i * cw;
+    const fh = (patch.fuel / fuelScale) * 210;
+    if (fh > 0.5) ops.push({ op: "rect", x, y: base - fh, w: Math.max(2, cw - 2), h: fh, dim: 0.85 });
+    const sh = (patch.starch / fruitScale) * 120;
+    if (sh > 0.5) ops.push({ op: "fill", x, y: base + 2, w: Math.max(2, cw - 2), h: sh, dim: 0.6 });
+    if (patch.burning > 0) {
+      ops.push({ op: "line", x1: x, y1: base - fh - 14, x2: x + cw - 2, y2: base - fh - 2, w: 2 });
+      ops.push({ op: "line", x1: x + cw - 2, y1: base - fh - 14, x2: x, y2: base - fh - 2, w: 2 });
+    }
+    if (i % 4 === 0) ops.push({ op: "text", x: x + 1, y: base + 128, s: String(i), dim: 0.5 });
+  });
+
+  // detail column on the right
+  const px = WIDTH - 270;
+  let py = 90;
+  const airScale = Math.max(1, place.air.O2 ?? 0, place.air.CO2 ?? 0, place.air.N2 ?? 0) * 1.15;
+  ops.push({ op: "text", x: px, y: py, s: "AIR" });
+  py += 14;
+  for (const gas of ["O2", "CO2", "N2"] as const) {
+    bar(ops, px, py, 120, place.air[gas] ?? 0, airScale, `${gas} ${(place.air[gas] ?? 0).toFixed(1)}`);
+    py += 15;
+  }
+  py += 12;
+  ops.push({ op: "text", x: px, y: py, s: "GROUND" });
+  py += 14;
+  const gScale = Math.max(1, place.soil.cellulose, place.soil.lignin, place.soil.starch) * 1.15;
+  for (const [k, v] of [["cel", place.soil.cellulose], ["lig", place.soil.lignin], ["sta", place.soil.starch], ["nh3", place.soil.ammonia]] as const) {
+    bar(ops, px, py, 120, v as number, k === "nh3" ? Math.max(1, place.soil.ammonia) * 1.15 : gScale, `${k} ${(v as number).toFixed(2)}`);
+    py += 15;
+  }
+  py += 12;
+  ops.push({ op: "text", x: px, y: py, s: "ALIVE" });
+  py += 14;
+  ops.push({ op: "text", x: px, y: py, s: `plants  ${place.alive.plants}`, dim: 0.85 });
+  py += 12;
+  ops.push({ op: "text", x: px, y: py, s: `fungi   ${place.alive.fungi}`, dim: 0.85 });
+  py += 12;
+  ops.push({ op: "text", x: px, y: py, s: `grazers ${place.alive.grazers}`, dim: 0.85 });
+  py += 18;
+  ops.push({ op: "text", x: px, y: py, s: `fires ${place.ignitions}  died ${place.deaths}`, dim: 0.7 });
+  py += 12;
+  ops.push({ op: "text", x: px, y: py, s: `meals ${place.meals}`, dim: 0.7 });
+  py += 22;
+
+  const past = [...history, frame];
+  ops.push({ op: "text", x: px, y: py, s: "HISTORY", dim: 0.8 });
+  py += 12;
+  spark(ops, px, py, 120, 26, past.map((f) => f.places[index]?.alive.plants ?? 0), "pla");
+  py += 34;
+  spark(ops, px, py, 120, 26, past.map((f) => f.places[index]?.soil.starch ?? 0), "sta");
+  py += 34;
+  spark(ops, px, py, 120, 26, past.map((f) => f.places[index]?.air.CO2 ?? 0), "co2");
+  return ops;
+}
