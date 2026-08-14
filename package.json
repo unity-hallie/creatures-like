@@ -1,0 +1,19 @@
+{
+  "name": "creatures-like",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A creatures-like a-life toy: genetics, endocrine, and neural meaning-making in one grammar.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsc --noEmit",
+    "muslin:ceiling": "vitest run muslin/tick-ceiling --disable-console-intercept"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "fast-check": "^4.8.0",
+    "typescript": "5.7.2",
+    "vitest": "^4.1.9"
+  }
+}
