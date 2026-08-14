@@ -1,21 +1,14 @@
-# This whole repo is a muslin
+# This repo is a muslin
 
-A muslin is a rough garment sewn to get torn apart — made to think with, marked so nobody
-mistakes it for the finished thing. Everything here carries that status until someone says
-otherwise.
+A rough garment sewn to get torn apart — made to think with, marked so nobody mistakes it
+for the finished thing.
 
-What that licenses, and what it does not:
+**Licensed:** emoji graphics, a source alias instead of a published build, one hand-written
+genome, hand-tuned numbers, visible seams.
 
-**Licensed.** Emoji and geometrics for graphics. A `scher` alias pointing at a sibling
-checkout's TypeScript source instead of a published build. One hand-written genome. Numbers
-tuned by hand. Seams left visible on purpose.
+**Not licensed:** findings stated past what the measurement supports. Rough, yes; dishonest,
+no. The seams show so they can be argued with.
 
-**Not licensed.** Findings stated more confidently than the measurement supports, and tests
-that pass without anyone looking at what they claim to check. A muslin can be rough; it
-cannot be dishonest. The seams show so they can be *argued with* — a muslin that quietly
-overstates itself has stopped being a muslin and become a bad product.
-
-The graphics choice is the clearest case. Sprite art is what kills hobby a-life projects:
-months spent on the least interesting layer. Emoji costs nothing, reads instantly (🍎 is
-food, ☠️ is death), and keeps the thing looking unfinished — so it keeps getting critiqued
-as a simulation rather than judged as a game.
+Emoji specifically: sprite art is what kills hobby a-life — months on the least interesting
+layer. Emoji costs nothing, reads instantly (🍎 food, ☠️ death), and keeps the thing looking
+unfinished, so it keeps getting critiqued as a simulation instead of judged as a game.
