@@ -10,12 +10,17 @@ import { Dice } from "../src/dice.js";
 import { competenceOf, recombine, shed, WILD_TYPE, type Genome } from "../src/genome.js";
 import { Organism } from "../src/organism.js";
 import { Ecosystem } from "../src/ecology.js";
-import { SAPROPHYTE } from "../src/flora.js";
+import { PLANT, SAPROPHYTE } from "../src/flora.js";
 
 const die = (seed = 8) => new Dice(seed).at("mutation");
 
-test("a genome with no competence sheds nothing and takes nothing", () => {
-  expect(competenceOf(WILD_TYPE)).toEqual({ donate: 0, uptake: 0 });
+test("a lineage stripped of competence sheds nothing and takes nothing", () => {
+  // Every seeded genome now carries a TRACE of competence, because mutation here is
+  // multiplicative and jitter on zero stays zero — a capacity at exactly nothing could
+  // never arise. So being incompetent is now something you have to be built as.
+  const barren: Genome = SAPROPHYTE.filter((g) => g.kind !== "competence");
+  expect(competenceOf(barren)).toEqual({ donate: 0, uptake: 0 });
+  expect(competenceOf(SAPROPHYTE).donate).toBeGreaterThan(0);
 });
 
 test("shedding takes part of a genome, never the whole of one", () => {
@@ -47,7 +52,16 @@ test("an organism can take on a changed genome without dying of it", () => {
 test("competent populations recombine; incompetent ones never do", () => {
   const competent: Genome = [...SAPROPHYTE, { kind: "competence", donate: 0.5, uptake: 0.5 }];
   const withIt = new Ecosystem({ seed: 4, plants: 6, fungi: 10, fungusGenome: competent });
-  const withoutIt = new Ecosystem({ seed: 4, plants: 6, fungi: 10, fungusGenome: SAPROPHYTE });
+  // the whole world has to be barren, not just its fungi: recombination is counted across
+  // every organism present, and plants carry the trace too
+  const strip = (g: Genome): Genome => g.filter((x) => x.kind !== "competence");
+  const withoutIt = new Ecosystem({
+    seed: 4,
+    plants: 6,
+    fungi: 10,
+    fungusGenome: strip(SAPROPHYTE),
+    plantGenome: strip(PLANT),
+  });
   for (let i = 0; i < 400; i++) {
     withIt.step();
     withoutIt.step();

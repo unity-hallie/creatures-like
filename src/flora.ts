@@ -51,7 +51,16 @@ export function oxidiseGlucose(slug: string, rate: number): Reaction {
 /** A plant. Fixes carbon in the light, builds itself out of the proceeds, and respires
  *  like everything else. Lignin costs more to make and cannot be rotted by a fungus
  *  lacking the enzyme — which is the knob the whole fire regime hangs on. */
+/** A trace of competence in every lineage.
+ *
+ *  Seeded rather than absent because mutation here is MULTIPLICATIVE: jitter on zero
+ *  stays zero, so a capacity at exactly nothing can never arise. Starting small and
+ *  letting selection raise or bury it is the honest version — the capacity exists faintly,
+ *  and whether it is worth paying for is the population's question, not mine. */
+export const TRACE_COMPETENCE = { kind: "competence" as const, donate: 0.02, uptake: 0.02 };
+
 export const PLANT: Genome = [
+  TRACE_COMPETENCE,
   {
     kind: "reaction",
     reaction: {
@@ -99,6 +108,7 @@ export const PLANT: Genome = [
 /** A fungus that can rot cellulose and nothing else. Lignin accumulates around it,
  *  untouched, exactly as it did for the sixty million years of the Carboniferous. */
 export const FUNGUS: Genome = [
+  TRACE_COMPETENCE,
   {
     // Cellulose is a crystalline repeat, so one well-fitted enzyme opens all of it.
     kind: "enzyme",
@@ -147,6 +157,7 @@ export const LIGNIN_EATER: Genome = [
  *  cheap and low, and everything it drops rots easily. A moss world should burn LESS —
  *  which tests the fire mechanism from the opposite direction to the Carboniferous. */
 export const MOSS: Genome = [
+  TRACE_COMPETENCE,
   {
     kind: "reaction",
     reaction: {
@@ -172,6 +183,7 @@ export const MOSS: Genome = [
  *  light — and leaves behind the one substrate most decomposers cannot open. The whole
  *  Carboniferous in one genome: the strategy that wins the canopy also makes the fuel. */
 export const TREE: Genome = [
+  TRACE_COMPETENCE,
   {
     kind: "reaction",
     reaction: {
@@ -202,6 +214,7 @@ export const TREE: Genome = [
  *  keeps working after the air runs out — plus it throws away four carbons of perfectly
  *  good fuel, which is why brewing works and why something always evolves to drink it. */
 export const YEAST: Genome = [
+  TRACE_COMPETENCE,
   {
     kind: "enzyme",
     keys: keysFor(LOCKS.starch),
@@ -228,6 +241,7 @@ export const YEAST: Genome = [
 /** ALGA — half a lichen. Photosynthesises and nothing else: no structure, no storage, no
  *  way to reach a substrate. Alone it is a poor organism. */
 export const ALGA: Genome = [
+  TRACE_COMPETENCE,
   {
     kind: "reaction",
     reaction: {
@@ -244,6 +258,7 @@ export const ALGA: Genome = [
 /** MYCOBIONT — the other half. Rots what it can reach and cannot make a calorie from
  *  light. On bare ground with no litter, it starves. */
 export const MYCOBIONT: Genome = [
+  TRACE_COMPETENCE,
   {
     kind: "enzyme",
     keys: keysFor(LOCKS.cellulose),
@@ -303,6 +318,7 @@ export const RHIZOBIUM: Genome = [
  *  on one soup (the same construction lichen uses), it trades sugar for ammonia and stops
  *  caring what the soil holds. */
 export const LEGUME: Genome = [
+  TRACE_COMPETENCE,
   {
     kind: "reaction",
     reaction: {
@@ -474,6 +490,7 @@ export const CHILLI: Genome = [
  *  Almost no lignin, so grass makes fine fuel: quick to catch, quick to spend. A grassland
  *  burns often and lightly where a forest burns rarely and completely. */
 export const GRASS: Genome = [
+  TRACE_COMPETENCE,
   {
     kind: "reaction",
     reaction: {

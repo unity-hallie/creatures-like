@@ -503,6 +503,17 @@ export class Ecosystem {
       this.#egest(grazer);
       grazer.organism.checkVitality();
       if (!grazer.organism.alive) this.#decompose(grazer);
+      else {
+        this.#transform(grazer);
+        const before = this.grazers.length;
+        this.#breed(grazer, this.grazers as Resident[]);
+        // a newborn grazer needs a brain of its own, grown from the genome it inherited
+        if (this.grazers.length > before) {
+          const born = this.grazers[this.grazers.length - 1] as Grazer;
+          born.lobe = new Lobe(born.organism.expressed, this.dice.at("spawn"));
+          born.meals = 0;
+        }
+      }
     }
 
     for (const resident of this.fungi) {
