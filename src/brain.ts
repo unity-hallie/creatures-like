@@ -50,6 +50,9 @@ export class Lobe {
 
   constructor(expressed: Expressed, spawn: Stream) {
     const gene = expressed.lobe;
+    // Plants and fungi legitimately express no lobe; a thing being given a brain must
+    // have the genes for one.
+    if (!gene) throw new Error("genome expresses no lobe: this creature has no brain to run");
     this.senses = gene.senses;
     this.actions = gene.actions;
     this.#learnRate = gene.learnRate;

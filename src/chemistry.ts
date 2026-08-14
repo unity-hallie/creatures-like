@@ -45,3 +45,18 @@ export class Soup {
     return new Soup([...this.#conc.entries()]);
   }
 }
+
+/** Moves matter between soups without creating or destroying any.
+ *
+ *  Every crossing in this model goes through here — a plant drawing CO2 from the air, a
+ *  fungus absorbing sugar from the litter, a corpse falling to the ground. The amount is
+ *  capped at what the source actually holds, for the same reason reactions run to an
+ *  extent: taking more than exists would clamp, and clamping is how the first draft of
+ *  this simulation invented energy. Returns what actually moved. */
+export function transfer(from: Soup, to: Soup, id: ChemId, amount: number): number {
+  const moved = Math.min(Math.max(0, amount), from.get(id));
+  if (moved <= 0) return 0;
+  from.add(id, -moved);
+  to.add(id, moved);
+  return moved;
+}

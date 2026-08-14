@@ -14,6 +14,7 @@
 
 import { chem, type ChemId } from "./chemistry.js";
 import type { Moiety, Reaction } from "./stoichiometry.js";
+import { LOCKS, type Keys, type Lock } from "./digestion.js";
 import type { Stream } from "./dice.js";
 
 export const CHEMS = {
@@ -30,6 +31,16 @@ export const CHEMS = {
   proteins: chem("proteins"),
   /** banks surplus fuel: catalyses glucose into lipids without being spent doing it */
   insulin: chem("insulin"),
+
+  // ── structural carbon: what plants build, what everything else wants back ──
+  /** digestible structure. Fungi unlock it with an ordinary enzyme gene. */
+  cellulose: chem("cellulose"),
+  /** indigestible structure — until something evolves the gene for it. Lignin arriving
+   *  before anything could rot it is why the Carboniferous buried coal and burned. */
+  lignin: chem("lignin"),
+  /** sunlight, carried as a chemical so photosynthesis can be an ordinary reaction with
+   *  an ordinary limiting reagent rather than a special case */
+  light: chem("light"),
 
   // ── the energy currency, as in the original: Creatures carried ATP directly ──
   atp: chem("ATP"),
@@ -69,18 +80,45 @@ export const MOIETIES: ReadonlyArray<readonly [string, Moiety]> = [
       [CHEMS.adp, 1],
     ],
   ],
-  [
-    "carbon",
-    [
-      [CHEMS.starch, 6],
-      [CHEMS.glucose, 6],
-      [CHEMS.pyruvate, 3],
-      [CHEMS.lipids, 6],
-      [CHEMS.proteins, 6],
-      [CHEMS.co2, 1],
-    ],
-  ],
+  ["carbon", CARBON_COUNTS()],
 ];
+
+/** Carbon atoms per unit, for every species that carries any. The ecosystem's
+ *  conservation test sums this across every soup in the world — creatures, fungi,
+ *  plants, patches, and the air — and the total must not move.
+ *
+ *  Lipids, proteins, cellulose and lignin are carried as glucose-equivalents (6) rather
+ *  than their true formulas. That is a declared simplification, not an accident: it keeps
+ *  every coefficient a whole number, which is what lets the balance check be exact
+ *  instead of approximate. */
+function CARBON_COUNTS(): Moiety {
+  return [
+    [CHEMS.starch, 6],
+    [CHEMS.glucose, 6],
+    [CHEMS.pyruvate, 3],
+    [CHEMS.lipids, 6],
+    [CHEMS.proteins, 6],
+    [CHEMS.cellulose, 6],
+    [CHEMS.lignin, 6],
+    [CHEMS.co2, 1],
+  ];
+}
+
+/** The carbon ledger, as a lookup. */
+export const CARBON: ReadonlyArray<readonly [ChemId, number]> = CARBON_COUNTS();
+
+/** Which lock each energy-bearing substrate presents. Anything absent here has no lock:
+ *  glucose is already open, which is exactly why every genome in the world competes for
+ *  it and why unlocking something else is worth spending ATP on. */
+export const SUBSTRATE_LOCKS: ReadonlyArray<readonly [ChemId, Lock]> = [
+  [CHEMS.starch, LOCKS.starch],
+  [CHEMS.cellulose, LOCKS.cellulose],
+  [CHEMS.lipids, LOCKS.lipids],
+  [CHEMS.proteins, LOCKS.proteins],
+  [CHEMS.lignin, LOCKS.lignin],
+];
+
+export const LOCK_OF = new Map(SUBSTRATE_LOCKS);
 
 /** What the creature can sense and do. The lobe gene names which of these it wires, so
  *  the brain's shape stays a genetic fact rather than a hard-coded one. */
@@ -107,6 +145,9 @@ export type EmitWhen = "success" | "failure" | "always";
 
 export type DecayGene = { kind: "decay"; chem: ChemId; halfLife: number };
 export type ReactionGene = { kind: "reaction"; reaction: Reaction };
+/** An enzyme: a reaction whose rate is gated by how much of the substrate's lock these
+ *  keys actually fit, and which costs ATP to run. See digestion.ts. */
+export type EnzymeGene = { kind: "enzyme"; reaction: Reaction; keys: Keys };
 /** an act's energy cost, as a conversion rather than a subtraction — so it can never
  *  spend currency the creature does not have */
 export type CostGene = { kind: "cost"; onAction: Action; reaction: Reaction };
@@ -131,6 +172,7 @@ export type LobeGene = {
 export type Gene =
   | DecayGene
   | ReactionGene
+  | EnzymeGene
   | CostGene
   | EndocrineGene
   | ReceptorGene
@@ -282,7 +324,8 @@ export function receptorsFor(genome: Genome, target: ReceptorTarget): ReceptorGe
 
 export function reactionsOf(genome: Genome): Reaction[] {
   return genome
-    .filter((g): g is ReactionGene | CostGene => g.kind === "reaction" || g.kind === "cost")
+    .filter((g): g is ReactionGene | CostGene | EnzymeGene =>
+      g.kind === "reaction" || g.kind === "cost" || g.kind === "enzyme")
     .map((g) => g.reaction);
 }
 
@@ -303,6 +346,15 @@ export function mutate(genome: Genome, stream: Stream, strength = 0.1): Genome {
       case "reaction":
       case "cost":
         return { ...gene, reaction: { ...gene.reaction, rate: gene.reaction.rate * jitter() } };
+      case "enzyme":
+        // Keys drift as well as rate: this is the gene-space search that lets a lineage
+        // creep into a lock it could not previously open. Clamped to [0,1] — a key that
+        // fits a motif more than completely means nothing.
+        return {
+          ...gene,
+          reaction: { ...gene.reaction, rate: gene.reaction.rate * jitter() },
+          keys: gene.keys.map((k) => Math.min(1, Math.max(0, k + (stream.next() * 2 - 1) * strength))),
+        };
       case "endocrine":
         return { ...gene, threshold: gene.threshold * jitter(), amount: gene.amount * jitter() };
       case "receptor":

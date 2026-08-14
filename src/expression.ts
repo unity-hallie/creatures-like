@@ -21,6 +21,7 @@ import {
   type DecayGene,
   type EmitterGene,
   type EndocrineGene,
+  type EnzymeGene,
   type Genome,
   type LobeGene,
   type ReceptorGene,
@@ -29,9 +30,14 @@ import {
 
 /** A genome, sorted into the shapes the tick actually asks for. */
 export interface Expressed {
-  lobe: LobeGene;
+  /** absent for anything without a brain. Plants and fungi run the same chemistry
+   *  machinery and simply express no lobe — which is the point of keeping every layer in
+   *  one flat gene list. */
+  lobe?: LobeGene;
   decays: readonly DecayGene[];
   reactions: readonly Reaction[];
+  /** rate-gated by how well their keys fit the substrate — see digestion.ts */
+  enzymes: readonly EnzymeGene[];
   endocrine: readonly EndocrineGene[];
   /** every reaction in the genome, including action costs — for birth-time checks */
   allReactions: readonly Reaction[];
@@ -55,7 +61,6 @@ const NONE: readonly never[] = [];
 
 export function express(genome: Genome): Expressed {
   const lobe = genome.find((g): g is LobeGene => g.kind === "lobe");
-  if (!lobe) throw new Error("genome expresses no lobe: this creature has no brain to run");
 
   const costs = group(
     genome.filter((g) => g.kind === "cost"),
@@ -74,6 +79,7 @@ export function express(genome: Genome): Expressed {
     lobe,
     decays: genome.filter((g): g is DecayGene => g.kind === "decay"),
     reactions: genome.filter((g) => g.kind === "reaction").map((g) => g.reaction),
+    enzymes: genome.filter((g): g is EnzymeGene => g.kind === "enzyme"),
     endocrine: genome.filter((g): g is EndocrineGene => g.kind === "endocrine"),
     allReactions: reactionsOf(genome),
     costsOf: (action) => costs.get(action)?.map((g) => g.reaction) ?? NONE,

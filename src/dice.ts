@@ -11,7 +11,7 @@
 
 /** The ports where this model admits it stops modeling. Adding a port here declares a
  *  new such boundary; removing one means something real now covers that ground. */
-export const PORTS = ["mutation", "diffusion", "tiebreak", "spawn"] as const;
+export const PORTS = ["mutation", "diffusion", "tiebreak", "spawn", "ignition"] as const;
 export type Port = (typeof PORTS)[number];
 
 export interface Stream {
