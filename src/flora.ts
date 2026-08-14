@@ -328,6 +328,54 @@ export const LEGUME: Genome = [
 /** A plant that must find its nitrogen in the ground, like most of them. */
 export const NITROGEN_HUNGRY_PLANT: Genome = [...PLANT, { kind: "reaction", reaction: aminate("plant-protein", 0.12) }];
 
+/** SAPROPHYTE — rots what a plant actually drops.
+ *
+ *  Added after the first long run went extinct. Nothing in the world could open starch:
+ *  fungi had cellulase and protease, and plants pour sugar into starch, so a steppe ended
+ *  the run sitting on 116 units of fuel nothing could eat. Atmospheric CO2 drained into
+ *  ground it could not get back out of, photosynthesis stopped for want of carbon, and
+ *  everything suffocated in a full larder — the lignin trap again, wearing a different
+ *  substrate, and I had not noticed because I built the decomposers before the fruit. */
+export const SAPROPHYTE: Genome = [
+  ...FUNGUS,
+  {
+    kind: "enzyme",
+    keys: keysFor(LOCKS.starch),
+    reaction: {
+      slug: "fungal-amylase",
+      reactants: [term(CHEMS.starch, 1)],
+      products: [term(CHEMS.glucose, 1)],
+      rate: 0.3,
+    },
+  },
+  {
+    kind: "enzyme",
+    keys: keysFor(LOCKS.proteins),
+    reaction: {
+      slug: "saprophyte-protease",
+      reactants: [term(CHEMS.proteins, 1)],
+      products: [term(CHEMS.glucose, 1), term(CHEMS.ammonia, 1)],
+      rate: 0.2,
+    },
+  },
+];
+
+/** Everything above, plus the lignin key: a complete decomposer, and the only kind that
+ *  lets a carbon cycle actually close. */
+export const COMPLETE_ROTTER: Genome = [
+  ...SAPROPHYTE,
+  {
+    kind: "enzyme",
+    keys: keysFor(LOCKS.lignin),
+    reaction: {
+      slug: "rotter-ligninase",
+      reactants: [term(CHEMS.lignin, 1)],
+      products: [term(CHEMS.glucose, 1)],
+      rate: 0.22,
+    },
+  },
+];
+
 /** Rotting protein returns its nitrogen to the soil. Without this the world's ammonia
  *  ends up locked in corpses and everything starves in a full larder. */
 export const PROTEIN_ROTTER: Genome = [
