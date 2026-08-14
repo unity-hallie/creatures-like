@@ -317,10 +317,22 @@ export class Ecosystem {
     }
   }
 
+  /** Structural carbon a plant has laid down. Height, in effect — and the only thing
+   *  lignin buys, which is what makes lignification worth its cost to a tree and not to
+   *  a moss. */
+  height(resident: Resident): number {
+    return resident.organism.soup.get(CHEMS.cellulose) + resident.organism.soup.get(CHEMS.lignin);
+  }
+
   step(): void {
     for (const patch of this.patches) patch.soup.set(CHEMS.light, LIGHT_PER_TICK);
 
-    for (const resident of this.plants) {
+    // SHADING. Light is finite per patch and taken in height order, so a tall plant
+    // drinks first and a short one gets the remainder. This is the only competition in
+    // the model that one organism can win outright, and it is why a tree pays for lignin.
+    const canopy = [...this.plants].sort((a, b) => this.height(b) - this.height(a));
+
+    for (const resident of canopy) {
       if (!resident.organism.alive) continue;
       this.#uptakeFor(resident);
       resident.organism.metabolise();

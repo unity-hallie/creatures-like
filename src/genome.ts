@@ -41,6 +41,9 @@ export const CHEMS = {
   /** sunlight, carried as a chemical so photosynthesis can be an ordinary reaction with
    *  an ordinary limiting reagent rather than a special case */
   light: chem("light"),
+  /** fermentation's output: two carbons of unspent fuel, thrown away because the yeast
+   *  was in too much of a hurry to finish burning it. Somebody else's dinner. */
+  ethanol: chem("ethanol"),
 
   // ── the energy currency, as in the original: Creatures carried ATP directly ──
   atp: chem("ATP"),
@@ -100,6 +103,7 @@ function CARBON_COUNTS(): Moiety {
     [CHEMS.proteins, 6],
     [CHEMS.cellulose, 6],
     [CHEMS.lignin, 6],
+    [CHEMS.ethanol, 2],
     [CHEMS.co2, 1],
   ];
 }

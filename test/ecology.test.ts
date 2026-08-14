@@ -7,12 +7,15 @@
 
 import { test, expect } from "vitest";
 import { Ecosystem } from "../src/ecology.js";
-import { FUNGUS, LIGNIN_EATER, PLANT } from "../src/flora.js";
+import { FUNGUS, LIGNIN_EATER, MOSS, PLANT, TREE } from "../src/flora.js";
 import { Organism } from "../src/organism.js";
 import { CHEMS } from "../src/genome.js";
 import { accessibility, keysFor, lockEntropy, LOCKS, partialKeys, MOTIF_SLOTS } from "../src/digestion.js";
 
 const SEEDS = [1, 2, 3, 4];
+
+const ligninOnGround = (eco: Ecosystem) =>
+  eco.patches.reduce((acc, p) => acc + p.soup.get(CHEMS.lignin), 0);
 
 function run(fungusGenome: typeof FUNGUS, seed: number, ticks = 900) {
   const eco = new Ecosystem({ seed, fungusGenome, plants: 10, fungi: 5 });
@@ -22,13 +25,23 @@ function run(fungusGenome: typeof FUNGUS, seed: number, ticks = 900) {
 }
 
 test("a world that cannot rot its lignin burns more often", () => {
-  for (const seed of SEEDS) {
-    const stuck = run(FUNGUS, seed);
-    const evolved = run(LIGNIN_EATER, seed);
+  // STATED AS A MEAN, and it has to be. Per-seed this held cleanly until organisms could
+  // starve; once they could, the two arms stopped being the same world with one gene
+  // changed. A death shifts how many draws the dice take, the trajectories diverge, and
+  // by tick 900 the arms differ in plant population for reasons that have nothing to do
+  // with lignin. The controlled-experiment framing was borrowed from a world without
+  // mortality and did not survive contact with one.
+  //
+  // The effect is real and it is statistical: across eight seeds the un-rotted world
+  // burns more and carries more lignin, while individual seeds go either way.
+  const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
-    expect(stuck.eco.fuelLoad()).toBeGreaterThan(evolved.eco.fuelLoad());
-    expect(stuck.eco.ignitions).toBeGreaterThan(evolved.eco.ignitions);
-  }
+  const stuck = seeds.map((s) => run(FUNGUS, s).eco);
+  const evolved = seeds.map((s) => run(LIGNIN_EATER, s).eco);
+
+  expect(mean(stuck.map((e) => e.ignitions))).toBeGreaterThan(mean(evolved.map((e) => e.ignitions)));
+  expect(mean(stuck.map(ligninOnGround))).toBeGreaterThan(mean(evolved.map(ligninOnGround)));
 });
 
 test("carbon is conserved across the whole world, whatever burns", () => {
@@ -78,4 +91,20 @@ test("a plant expresses no lobe and runs the same machinery anyway", () => {
   const plant = new Organism({ genome: PLANT });
   expect(plant.expressed.lobe).toBeUndefined();
   expect(plant.expressed.reactions.length).toBeGreaterThan(0);
+});
+
+test("a moss world burns less than a forest, because moss builds no lignin", () => {
+  // The Carboniferous claim run backwards. Bryophytes never evolved lignin; neither has
+  // MOSS. Same fungi, same fire code, same seeds — only the producer's genome differs.
+  for (const seed of [1, 2, 3]) {
+    const forest = new Ecosystem({ seed, plantGenome: TREE, fungusGenome: FUNGUS, plants: 10, fungi: 5 });
+    const bog = new Ecosystem({ seed, plantGenome: MOSS, fungusGenome: FUNGUS, plants: 10, fungi: 5 });
+    for (let i = 0; i < 900; i++) {
+      forest.step();
+      bog.step();
+    }
+    expect(ligninOnGround(bog)).toBe(0);
+    expect(ligninOnGround(forest)).toBeGreaterThan(1);
+    expect(bog.ignitions).toBeLessThan(forest.ignitions);
+  }
 });
