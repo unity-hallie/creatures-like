@@ -24,7 +24,10 @@ import {
   type EnzymeGene,
   type Genome,
   type LobeGene,
+  type PsycheGene,
   type ReceptorGene,
+  type ResolutionGene,
+  type VocabularyGene,
   type ReceptorTarget,
 } from "./genome.js";
 
@@ -39,6 +42,12 @@ export interface Expressed {
   /** rate-gated by how well their keys fit the substrate — see digestion.ts */
   enzymes: readonly EnzymeGene[];
   endocrine: readonly EndocrineGene[];
+  /** how what is in mind reaches the bloodstream */
+  psyche: readonly PsycheGene[];
+  /** innate, meaningless tokens this genome supplies */
+  vocabulary: readonly string[];
+  /** how far this mind walks before meaning fades */
+  horizon: number;
   /** every reaction in the genome, including action costs — for birth-time checks */
   allReactions: readonly Reaction[];
   costsOf(action: Action): readonly Reaction[];
@@ -81,6 +90,9 @@ export function express(genome: Genome): Expressed {
     reactions: genome.filter((g) => g.kind === "reaction").map((g) => g.reaction),
     enzymes: genome.filter((g): g is EnzymeGene => g.kind === "enzyme"),
     endocrine: genome.filter((g): g is EndocrineGene => g.kind === "endocrine"),
+    psyche: genome.filter((g): g is PsycheGene => g.kind === "psyche"),
+    vocabulary: genome.filter((g): g is VocabularyGene => g.kind === "vocabulary").map((g) => g.token),
+    horizon: genome.find((g): g is ResolutionGene => g.kind === "resolution")?.horizon ?? 6,
     allReactions: reactionsOf(genome),
     costsOf: (action) => costs.get(action)?.map((g) => g.reaction) ?? NONE,
     emittersOf: (action) => emitters.get(action) ?? NONE,

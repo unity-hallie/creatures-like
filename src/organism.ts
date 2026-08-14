@@ -114,6 +114,21 @@ export class Organism {
     for (const gene of this.expressed.decays) this.soup.set(gene.chem, this.soup.get(gene.chem) * gene.halfLife);
   }
 
+  /** Being moved by what is in mind.
+   *
+   *  The pneuma layer hands over ONE number — the felt weight of everything currently
+   *  active — and this turns it into hormones. Nothing here knows what a word is, and
+   *  nothing downstream knows a word was involved: the cortisol a frightening thought
+   *  makes reads exactly like the cortisol an empty stomach makes, because in a body it
+   *  IS exactly that. */
+  feel(weight: number): void {
+    if (weight === 0) return;
+    for (const gene of this.expressed.psyche) {
+      const matches = weight > 0 ? gene.when === "pleasant" : gene.when === "unpleasant";
+      if (matches) this.soup.add(gene.secretes, gene.amount * Math.abs(weight));
+    }
+  }
+
   /** An organism that cannot make energy for long enough stops being one.
    *
    *  Read against ATP rather than against food: a creature surrounded by food it cannot

@@ -200,6 +200,26 @@ export type EndocrineGene = {
   amount: number;
 };
 export type ReceptorGene = { kind: "receptor"; chem: ChemId; target: ReceptorTarget; gain: number };
+/** THE ALGEDONIC CHANNEL for words. What is currently in mind provokes SECRETION, and
+ *  from there the ordinary receptors do the ordinary work — a pneuma gets no direct line
+ *  to the brain. A word that reaches your pain pole makes cortisol; cortisol binds
+ *  punishment; consolidation runs negative on whatever you were just doing. Words move a
+ *  creature the way weather does, through the same chemistry as everything else. */
+export type PsycheGene = { kind: "psyche"; when: "pleasant" | "unpleasant"; secretes: ChemId; amount: number };
+/** AN INNATE, MEANINGLESS TOKEN.
+ *
+ *  The same trick as a toxin: a molecule is arbitrary until a receptor makes it mean
+ *  something, and a word is arbitrary until experience wires it. So a genome supplies
+ *  vocabulary the way it supplies solanine — a randomised pattern with no meaning of its
+ *  own, which an individual then learns to hook to its neurotransmitters. Birdsong
+ *  templates and phoneme inventories arrive this way in the real thing.
+ *
+ *  The token here is genuinely arbitrary: mutation may replace it wholesale, and nothing
+ *  breaks, because nothing ever read it for content. */
+export type VocabularyGene = { kind: "vocabulary"; token: string };
+/** How far this mind walks before meaning fades — a genetic projection of the semantic
+ *  space. Short reads coarse, long reads fine, over the very same edges. */
+export type ResolutionGene = { kind: "resolution"; horizon: number };
 export type EmitterGene = { kind: "emitter"; onAction: Action; when: EmitWhen; chem: ChemId; amount: number };
 export type LobeGene = {
   kind: "lobe";
@@ -216,6 +236,9 @@ export type Gene =
   | CostGene
   | EndocrineGene
   | ReceptorGene
+  | PsycheGene
+  | VocabularyGene
+  | ResolutionGene
   | EmitterGene
   | LobeGene;
 
@@ -347,6 +370,10 @@ export const WILD_TYPE: Genome = [
   { kind: "receptor", chem: CHEMS.serotonin, target: "malaise", gain: 0.5 },
   { kind: "receptor", chem: CHEMS.co2, target: "malaise", gain: 0.3 },
 
+  // ── what words do to a body ────────────────────────────────────────────────
+  { kind: "psyche", when: "unpleasant", secretes: CHEMS.cortisol, amount: 0.5 },
+  { kind: "psyche", when: "pleasant", secretes: CHEMS.dopamine, amount: 0.45 },
+
   // ── what doing things does to the soup ─────────────────────────────────────
   //
   // SIGNALS ONLY. Emitters here secrete hormones, which a body genuinely makes out of
@@ -409,6 +436,15 @@ export function mutate(genome: Genome, stream: Stream, strength = 0.1): Genome {
         return { ...gene, threshold: gene.threshold * jitter(), amount: gene.amount * jitter() };
       case "receptor":
         return { ...gene, gain: gene.gain * jitter() };
+      case "psyche":
+        return { ...gene, amount: gene.amount * jitter() };
+      case "vocabulary":
+        // a mutated token is simply a DIFFERENT arbitrary token. Nothing downstream reads
+        // it for content, so nothing downstream notices anything but the change of
+        // identity — which is what makes a vocabulary heritable and meaningless at once.
+        return stream.next() < strength ? { ...gene, token: `w${Math.floor(stream.next() * 1e6)}` } : gene;
+      case "resolution":
+        return { ...gene, horizon: Math.max(1, Math.round(gene.horizon * jitter())) };
       case "emitter":
         return { ...gene, amount: gene.amount * jitter() };
       case "lobe":
