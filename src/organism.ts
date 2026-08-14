@@ -10,7 +10,7 @@
 
 import { Soup, type ChemId } from "./chemistry.js";
 import { express, type Expressed } from "./expression.js";
-import { CARBON, CHEMS, LOCK_OF, type Genome } from "./genome.js";
+import { CARBON, CHEMS, LOCK_OF, NITROGEN, type Genome } from "./genome.js";
 import { accessibility, unlockCost } from "./digestion.js";
 import { applyReaction } from "./stoichiometry.js";
 
@@ -126,9 +126,12 @@ export class Organism {
     if (this.#failing > this.#tolerance) this.alive = false;
   }
 
-  /** Everything this organism is made of, as carbon-bearing matter. Called when it dies:
-   *  the body does not vanish, it becomes litter. */
-  carbonBearing(): Array<readonly [ChemId, number]> {
-    return CARBON.map(([id]) => [id, this.soup.get(id)] as const).filter(([, amount]) => amount > 0);
+  /** Everything this organism is made of, across every conserved element. Called when it
+   *  dies: the body does not vanish, it becomes litter — and its nitrogen matters as much
+   *  as its carbon, since a world whose nitrogen stays locked in corpses starves in a
+   *  full larder. */
+  matter(): Array<readonly [ChemId, number]> {
+    const species = new Set([...CARBON.map(([id]) => id), ...NITROGEN.map(([id]) => id)]);
+    return [...species].map((id) => [id, this.soup.get(id)] as const).filter(([, amount]) => amount > 0);
   }
 }

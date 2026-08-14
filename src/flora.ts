@@ -257,3 +257,218 @@ export const MYCOBIONT: Genome = [
   { kind: "reaction", reaction: upkeep("mycobiont-upkeep", 0.07) },
   { kind: "reaction", reaction: oxidiseGlucose("mycobiont-respiration", 0.18) },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NITROGEN, and the things that fight over it.
+//
+// Carbon comes free from the air for anything that can photosynthesise. Nitrogen does
+// not: the atmosphere is full of N2 and almost nothing can touch it, because the triple
+// bond costs a fortune to break. That single fact is why nitrogen limits life on a
+// planet swimming in it, and it gives the model its second axis of competition — the
+// first one an organism cannot solve by growing taller.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Building tissue: sugar plus fixed nitrogen. Every genome that grows protein needs
+ *  ammonia from somewhere, which is exactly the dependency that makes legumes worth it. */
+export function aminate(slug: string, rate: number): Reaction {
+  return {
+    slug,
+    reactants: [term(CHEMS.glucose, 1), term(CHEMS.ammonia, 1)],
+    products: [term(CHEMS.proteins, 1)],
+    rate,
+  };
+}
+
+/** RHIZOBIUM — half a legume, and the reason the other half wins.
+ *
+ *  Nitrogen fixation costs sixteen ATP per N2 broken, which is not a metaphor for
+ *  expensive, it IS expensive: the bacterium spends more energy on this one reaction than
+ *  on staying alive. It cannot pay for that alone, having no way to make sugar. Housed in
+ *  a root nodule and fed by a plant, it can. */
+export const RHIZOBIUM: Genome = [
+  {
+    kind: "reaction",
+    reaction: {
+      slug: "nitrogenase",
+      reactants: [term(CHEMS.n2, 1), term(CHEMS.atp, 16)],
+      products: [term(CHEMS.ammonia, 2), term(CHEMS.adp, 16)],
+      rate: 0.25,
+    },
+  },
+  { kind: "reaction", reaction: upkeep("rhizobium-upkeep", 0.05) },
+  { kind: "reaction", reaction: oxidiseGlucose("rhizobium-respiration", 0.2) },
+];
+
+/** LEGUME. Ordinary in every respect except the company it keeps: paired with RHIZOBIUM
+ *  on one soup (the same construction lichen uses), it trades sugar for ammonia and stops
+ *  caring what the soil holds. */
+export const LEGUME: Genome = [
+  {
+    kind: "reaction",
+    reaction: {
+      slug: "photosynthesis",
+      reactants: [term(CHEMS.co2, 6), term(CHEMS.light, 6)],
+      products: [term(CHEMS.glucose, 1), term(CHEMS.o2, 6)],
+      rate: 0.3,
+    },
+  },
+  { kind: "reaction", reaction: aminate("legume-protein", 0.12) },
+  {
+    kind: "reaction",
+    reaction: { slug: "growth", reactants: [term(CHEMS.glucose, 1)], products: [term(CHEMS.cellulose, 1)], rate: 0.14 },
+  },
+  {
+    kind: "reaction",
+    reaction: { slug: "fruiting", reactants: [term(CHEMS.glucose, 1)], products: [term(CHEMS.starch, 1)], rate: 0.06 },
+  },
+  { kind: "reaction", reaction: upkeep("legume-upkeep", 0.05) },
+  { kind: "reaction", reaction: oxidiseGlucose("legume-respiration", 0.05) },
+];
+
+/** A plant that must find its nitrogen in the ground, like most of them. */
+export const NITROGEN_HUNGRY_PLANT: Genome = [...PLANT, { kind: "reaction", reaction: aminate("plant-protein", 0.12) }];
+
+/** Rotting protein returns its nitrogen to the soil. Without this the world's ammonia
+ *  ends up locked in corpses and everything starves in a full larder. */
+export const PROTEIN_ROTTER: Genome = [
+  ...FUNGUS,
+  {
+    kind: "enzyme",
+    keys: keysFor(LOCKS.proteins),
+    reaction: {
+      slug: "protease",
+      reactants: [term(CHEMS.proteins, 1)],
+      products: [term(CHEMS.glucose, 1), term(CHEMS.ammonia, 1)],
+      rate: 0.2,
+    },
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEFENCES.
+//
+// A toxin costs nothing to model, because the machinery already exists: a plant secretes
+// a chemical, and whatever eats it either holds a receptor for that chemical or does not.
+// If it does, the binding lands on `punishment`, consolidation runs negative, and the
+// synapse that led to the mouthful gets weaker. The creature LEARNS to avoid the plant,
+// using the identical loop that taught it to approach food.
+//
+// The sharp case is capsaicin. It deters mammals and not birds — and the reason is that
+// deterrence lives in the receptor, never in the molecule. Here a receptor belongs to a
+// genome, so the same chemical means agony to one creature and nothing at all to another,
+// with no special-casing anywhere. Directed deterrence, straight out of the rule that a
+// chemical means only what the wiring says.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Alkaloids cost nitrogen — the same nitrogen the plant would otherwise build tissue
+ *  from. A nitrogen-starved plant cannot afford to be poisonous, which is a real trade
+ *  rather than a flavour note. */
+export const NIGHTSHADE: Genome = [
+  ...LEGUME.filter((g) => !(g.kind === "reaction" && g.reaction.slug === "fruiting")),
+  {
+    kind: "reaction",
+    reaction: {
+      slug: "fruiting",
+      reactants: [term(CHEMS.glucose, 1)],
+      products: [term(CHEMS.starch, 1)],
+      rate: 0.06,
+    },
+  },
+  {
+    // carbon 6 → 6, nitrogen 1 → 1
+    kind: "reaction",
+    reaction: {
+      slug: "alkaloid-synthesis",
+      reactants: [term(CHEMS.glucose, 1), term(CHEMS.ammonia, 1)],
+      products: [term(CHEMS.solanine, 1)],
+      rate: 0.09,
+    },
+  },
+];
+
+/** Bitterness on the cheap: no nitrogen, so a gourd can defend itself in poor soil, and
+ *  correspondingly it defends itself less well. */
+export const GOURD: Genome = [
+  ...PLANT,
+  {
+    kind: "reaction",
+    reaction: {
+      slug: "cucurbitacin-synthesis",
+      reactants: [term(CHEMS.glucose, 1)],
+      products: [term(CHEMS.cucurbitacin, 1)],
+      rate: 0.07,
+    },
+  },
+];
+
+/** The chilli's bet: deter the eater that chews seeds, feed the one that swallows them
+ *  whole. Same molecule, opposite outcomes, decided entirely downstream. */
+export const CHILLI: Genome = [
+  ...PLANT,
+  {
+    kind: "reaction",
+    reaction: {
+      slug: "capsaicin-synthesis",
+      reactants: [term(CHEMS.glucose, 1)],
+      products: [term(CHEMS.capsaicin, 1)],
+      rate: 0.07,
+    },
+  },
+];
+
+/** GRASS. Cheap, fast, and built to be eaten.
+ *
+ *  Grasses grow from the base rather than the tip, which is why grazing prunes them
+ *  instead of killing them — the growing point sits below the animal's mouth. Here that
+ *  tolerance needs no special rule: a grazed grass loses cellulose and regrows it at a
+ *  rate a tree cannot match. Tolerance IS the growth rate, which is data.
+ *
+ *  Almost no lignin, so grass makes fine fuel: quick to catch, quick to spend. A grassland
+ *  burns often and lightly where a forest burns rarely and completely. */
+export const GRASS: Genome = [
+  {
+    kind: "reaction",
+    reaction: {
+      slug: "photosynthesis",
+      reactants: [term(CHEMS.co2, 6), term(CHEMS.light, 6)],
+      products: [term(CHEMS.glucose, 1), term(CHEMS.o2, 6)],
+      rate: 0.32,
+    },
+  },
+  {
+    // the basal meristem, expressed as a number: fast enough to outrun a mouth
+    kind: "reaction",
+    reaction: { slug: "growth", reactants: [term(CHEMS.glucose, 1)], products: [term(CHEMS.cellulose, 1)], rate: 0.26 },
+  },
+  {
+    kind: "reaction",
+    reaction: { slug: "lignification", reactants: [term(CHEMS.glucose, 1)], products: [term(CHEMS.lignin, 1)], rate: 0.01 },
+  },
+  {
+    kind: "reaction",
+    reaction: { slug: "fruiting", reactants: [term(CHEMS.glucose, 1)], products: [term(CHEMS.starch, 1)], rate: 0.05 },
+  },
+  { kind: "reaction", reaction: aminate("grass-protein", 0.1) },
+  { kind: "reaction", reaction: upkeep("grass-upkeep", 0.05) },
+  { kind: "reaction", reaction: oxidiseGlucose("grass-respiration", 0.06) },
+];
+
+/** RUMEN SYMBIONT — the third use of one soup, two genomes.
+ *
+ *  No vertebrate makes cellulase. Every animal that lives on grass is really a
+ *  partnership: the animal chews and swallows, and a microbial population it did not
+ *  build turns the cellulose into sugar it can use. Lichen, root nodule, rumen — one
+ *  construction, three times, and none of them needed engine support. */
+export const RUMEN_SYMBIONT: Genome = [
+  {
+    kind: "enzyme",
+    keys: keysFor(LOCKS.cellulose),
+    reaction: {
+      slug: "rumen-cellulase",
+      reactants: [term(CHEMS.cellulose, 1)],
+      products: [term(CHEMS.glucose, 1)],
+      rate: 0.28,
+    },
+  },
+  { kind: "reaction", reaction: upkeep("rumen-upkeep", 0.04) },
+];

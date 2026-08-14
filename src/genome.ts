@@ -45,6 +45,24 @@ export const CHEMS = {
    *  was in too much of a hurry to finish burning it. Somebody else's dinner. */
   ethanol: chem("ethanol"),
 
+  // ── plant defences. Carbon and nitrogen spent on not being eaten ──────────
+  /** the nightshade alkaloid. Costs nitrogen to make, which is why a plant short of
+   *  nitrogen cannot afford to defend itself — a real trade, not a flavour note. */
+  solanine: chem("solanine"),
+  /** the gourd bitterness. Cheaper, carbon-only, and correspondingly weaker. */
+  cucurbitacin: chem("cucurbitacin"),
+  /** the capsicum trick: a molecule that hurts some eaters and not others, because the
+   *  hurting lives in the receptor rather than in the molecule. */
+  capsaicin: chem("capsaicin"),
+
+  // ── nitrogen: the second currency, and the second thing worth fighting over ──
+  /** atmospheric dinitrogen. Abundant, inert, and useless to almost everything — the
+   *  triple bond costs a fortune to break, which is the whole reason nitrogen limits
+   *  life on a planet that is swimming in it. */
+  n2: chem("N2"),
+  /** fixed nitrogen: the form anything can actually build with. */
+  ammonia: chem("ammonia"),
+
   // ── the energy currency, as in the original: Creatures carried ATP directly ──
   atp: chem("ATP"),
   /** spent currency. ATP + ADP is a conserved moiety here, checked at birth. */
@@ -84,7 +102,22 @@ export const MOIETIES: ReadonlyArray<readonly [string, Moiety]> = [
     ],
   ],
   ["carbon", CARBON_COUNTS()],
+  ["nitrogen", NITROGEN_COUNTS()],
 ];
+
+/** Nitrogen per unit. Proteins carry one apiece — another declared simplification in the
+ *  same spirit as the glucose-equivalents, and for the same reason: whole numbers make
+ *  the balance check exact rather than approximate. */
+function NITROGEN_COUNTS(): Moiety {
+  return [
+    [CHEMS.proteins, 1],
+    [CHEMS.ammonia, 1],
+    [CHEMS.solanine, 1],
+    [CHEMS.n2, 2],
+  ];
+}
+
+export const NITROGEN: ReadonlyArray<readonly [ChemId, number]> = NITROGEN_COUNTS();
 
 /** Carbon atoms per unit, for every species that carries any. The ecosystem's
  *  conservation test sums this across every soup in the world — creatures, fungi,
@@ -104,6 +137,9 @@ function CARBON_COUNTS(): Moiety {
     [CHEMS.cellulose, 6],
     [CHEMS.lignin, 6],
     [CHEMS.ethanol, 2],
+    [CHEMS.solanine, 6],
+    [CHEMS.cucurbitacin, 6],
+    [CHEMS.capsaicin, 6],
     [CHEMS.co2, 1],
   ];
 }
@@ -260,7 +296,9 @@ export const WILD_TYPE: Genome = [
     reaction: {
       slug: "proteolysis",
       reactants: [term(CHEMS.proteins, 1)],
-      products: [term(CHEMS.glucose, 1)],
+      // burning protein for sugar frees its nitrogen, which has to go somewhere — this is
+      // why starving animals excrete nitrogen and why the balance check insists on it
+      products: [term(CHEMS.glucose, 1), term(CHEMS.ammonia, 1)],
       catalysts: [CHEMS.cortisol],
       rate: 0.03,
     },

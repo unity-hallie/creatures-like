@@ -14,7 +14,7 @@
 import { Soup, transfer, type ChemId } from "./chemistry.js";
 import { applyReaction } from "./stoichiometry.js";
 import { Dice } from "./dice.js";
-import { CARBON, CHEMS, SUBSTRATE_LOCKS, type Genome } from "./genome.js";
+import { CARBON, CHEMS, NITROGEN, SUBSTRATE_LOCKS, type Genome } from "./genome.js";
 import { FUNGUS, PLANT } from "./flora.js";
 import { Organism } from "./organism.js";
 import { bind, Lobe } from "./brain.js";
@@ -26,6 +26,8 @@ import { WILD_TYPE } from "./genome.js";
 const ENVIRONMENT: ReadonlyArray<readonly [ChemId, "air" | "patch"]> = [
   [CHEMS.co2, "air"],
   [CHEMS.o2, "air"],
+  [CHEMS.n2, "air"],
+  [CHEMS.ammonia, "patch"],
   [CHEMS.light, "patch"],
   [CHEMS.cellulose, "patch"],
   [CHEMS.lignin, "patch"],
@@ -48,6 +50,9 @@ export interface EcosystemOptions {
   grazerGenome?: Genome;
   /** oxygen the world starts with; the fire regime is sensitive to this by design */
   oxygen?: number;
+  dinitrogen?: number;
+  /** usable nitrogen in the ground. Set it low to make legumes matter. */
+  soilAmmonia?: number;
 }
 
 export class Patch {
@@ -112,6 +117,10 @@ export class Ecosystem {
 
     this.air.set(CHEMS.o2, opts.oxygen ?? 40);
     this.air.set(CHEMS.co2, 60);
+    // plenty of nitrogen, almost none of it usable — the planet's standing joke
+    this.air.set(CHEMS.n2, opts.dinitrogen ?? 30);
+    const ammonia = opts.soilAmmonia ?? 0.5;
+    for (const patch of this.patches) patch.soup.set(CHEMS.ammonia, ammonia);
 
     const spawn = this.dice.at("spawn");
     for (let i = 0; i < (opts.plants ?? 8); i++) {
@@ -164,6 +173,18 @@ export class Ecosystem {
     let total = 0;
     const count = (soup: Soup) => {
       for (const [id, per] of CARBON) total += soup.get(id) * per;
+    };
+    count(this.air);
+    for (const patch of this.patches) count(patch.soup);
+    for (const r of [...this.plants, ...this.fungi, ...this.grazers]) count(r.organism.soup);
+    return total;
+  }
+
+  /** Every nitrogen atom in the world. Same law as carbon, second element. */
+  totalNitrogen(): number {
+    let total = 0;
+    const count = (soup: Soup) => {
+      for (const [id, per] of NITROGEN) total += soup.get(id) * per;
     };
     count(this.air);
     for (const patch of this.patches) count(patch.soup);
@@ -236,10 +257,26 @@ export class Ecosystem {
       grazer.at++;
       succeeded = true;
     } else if (action === "eat") {
-      const taken = transfer(patch.soup, grazer.organism.soup, CHEMS.starch, patch.soup.get(CHEMS.starch) * BITE);
-      // a mouthful takes the surrounding structure too — which the animal cannot open,
-      // so it comes out the other end for a fungus to deal with
-      transfer(patch.soup, grazer.organism.soup, CHEMS.cellulose, taken * 0.4);
+      let taken = transfer(patch.soup, grazer.organism.soup, CHEMS.starch, patch.soup.get(CHEMS.starch) * BITE);
+      // a mouthful takes the surrounding structure too — which no vertebrate can open,
+      // so without a gut symbiont it comes out the other end for a fungus to deal with
+      taken += transfer(patch.soup, grazer.organism.soup, CHEMS.cellulose, taken * 0.4);
+
+      // GRAZING. With no fruit on the ground, take the plant itself. This is why grass
+      // grows from the base: the growing point sits below the mouth, so a grazed grass is
+      // pruned rather than killed, and outgrows the loss if its growth rate can.
+      if (taken <= 0) {
+        for (const plant of this.plants) {
+          if (plant.at !== grazer.at || !plant.organism.alive) continue;
+          taken += transfer(plant.organism.soup, grazer.organism.soup, CHEMS.cellulose, plant.organism.soup.get(CHEMS.cellulose) * BITE);
+          // and whatever the plant spent on defending itself comes along with the bite
+          for (const toxin of [CHEMS.solanine, CHEMS.cucurbitacin, CHEMS.capsaicin]) {
+            transfer(plant.organism.soup, grazer.organism.soup, toxin, plant.organism.soup.get(toxin) * BITE);
+          }
+          break;
+        }
+      }
+
       if (taken > 0) {
         succeeded = true;
         grazer.meals++;
@@ -266,7 +303,7 @@ export class Ecosystem {
    *  where a decomposer may or may not be able to reach it. */
   #decompose(resident: Resident): void {
     const patch = this.patches[resident.at];
-    for (const [id] of resident.organism.carbonBearing()) {
+    for (const [id] of resident.organism.matter()) {
       transfer(resident.organism.soup, patch.soup, id, resident.organism.soup.get(id));
     }
     this.deaths++;
