@@ -17,6 +17,10 @@ import { applyReaction } from "./stoichiometry.js";
 export interface OrganismOptions {
   genome: Genome;
   initial?: ReadonlyArray<readonly [ChemId, number]>;
+  /** an existing soup to inhabit, rather than a fresh one. The animal's World holds its
+   *  soup in a scher Cell so views can subscribe; passing it here keeps ONE body rather
+   *  than two that drift. */
+  soup?: Soup;
   /** ticks of energy failure tolerated before death */
   tolerance?: number;
 }
@@ -32,7 +36,7 @@ export class Organism {
 
   constructor(opts: OrganismOptions) {
     this.expressed = express(opts.genome);
-    this.soup = new Soup(opts.initial ?? []);
+    this.soup = opts.soup ?? new Soup(opts.initial ?? []);
     this.#tolerance = opts.tolerance ?? 40;
   }
 
@@ -55,7 +59,7 @@ export class Organism {
    *  reachable at all, and ATP caps how much reaching the organism can afford this tick —
    *  so a starving decomposer digests slowly precisely when it most needs not to, which
    *  is the shape real starvation has. */
-  #digest(): void {
+  digest(): void {
     const soup = this.soup;
     for (const enzyme of this.expressed.enzymes) {
       const substrate = enzyme.reaction.reactants[0]?.chem;
@@ -83,16 +87,31 @@ export class Organism {
    *  between emitters and consolidation; a plant has nothing to insert, so this is its
    *  whole tick. */
   metabolise(): void {
+    this.digest();
+    this.secrete();
+    this.react();
+    this.decay();
+    this.age++;
+  }
+
+  /** The glands: each watches one concentration and secretes another. */
+  secrete(): void {
     const soup = this.soup;
-    this.#digest();
     for (const gene of this.expressed.endocrine) {
       const level = soup.get(gene.watches);
       const firing = gene.when === "above" ? level > gene.threshold : level < gene.threshold;
       if (firing) soup.add(gene.secretes, gene.amount);
     }
-    for (const reaction of this.expressed.reactions) applyReaction(reaction, soup);
-    for (const gene of this.expressed.decays) soup.set(gene.chem, soup.get(gene.chem) * gene.halfLife);
-    this.age++;
+  }
+
+  react(): void {
+    for (const reaction of this.expressed.reactions) applyReaction(reaction, this.soup);
+  }
+
+  /** Signals fade. Runs LAST, so a signal gets read before it decays — the animal
+   *  consolidates its learning between react() and decay() for exactly that reason. */
+  decay(): void {
+    for (const gene of this.expressed.decays) this.soup.set(gene.chem, this.soup.get(gene.chem) * gene.halfLife);
   }
 
   /** An organism that cannot make energy for long enough stops being one.

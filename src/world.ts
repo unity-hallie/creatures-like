@@ -17,6 +17,7 @@ import { Society, cell, type Cell } from "scher";
 import { Soup, type ChemId } from "./chemistry.js";
 import { bind, Lobe } from "./brain.js";
 import { express, type Expressed } from "./expression.js";
+import { Organism } from "./organism.js";
 import { CHEMS, MOIETIES, type Action, type Genome, type Sense, SENSES, WILD_TYPE } from "./genome.js";
 import { applyReaction, assertBalanced, layNetwork } from "./stoichiometry.js";
 import { Dice } from "./dice.js";
@@ -78,6 +79,12 @@ export class World {
   readonly chronicle = new Society();
   /** the reaction network as a graph: laid once at birth, never per tick */
   readonly network: Society;
+  /** the creature's body — ONE Organism, shared with the ecology's machinery rather than
+   *  a second copy of it. The duplication this replaces was not theoretical: when amylase
+   *  became an enzyme gene, World's own hand-rolled tick stopped digesting starch
+   *  entirely and the creature quietly starved, because World iterated `reactions` and
+   *  enzymes had moved to their own bucket. */
+  readonly body: Organism;
   /** the creature's soup, held as a scher reading so a view can subscribe */
   readonly soup: Cell<Soup>;
   /** the world's soup */
@@ -103,7 +110,9 @@ export class World {
 
     this.lobe = new Lobe(this.expressed, this.dice.at("spawn"));
     this.position = Math.floor(this.width / 2);
-    this.soup = cell(new Soup(BIRTH_SOUP));
+    const body = new Soup(BIRTH_SOUP);
+    this.body = new Organism({ genome: this.genome, soup: body });
+    this.soup = cell(body);
     this.air = cell(new Soup(ATMOSPHERE));
 
     this.#spawnFood();
@@ -174,11 +183,13 @@ export class World {
     this.#emit(soup, action, succeeded);
     for (const cost of this.expressed.costsOf(action)) applyReaction(cost, soup);
     this.#breathe(soup);
-    this.#endocrine(soup);
-    for (const reaction of this.expressed.reactions) applyReaction(reaction, soup);
-    // consolidation reads the soup as the meal left it — see the file header
+    this.body.digest();
+    this.body.secrete();
+    this.body.react();
+    // consolidation reads the soup as the meal left it, BEFORE the signals fade — see
+    // the file header
     this.lobe.consolidate(bind(this.expressed, soup));
-    this.#decay(soup);
+    this.body.decay();
     this.soup.update((s) => s); // re-observe: the held Soup mutated in place
 
     const distanceAfter = before === null ? 0 : Math.abs(before - this.position);
@@ -205,14 +216,6 @@ export class World {
       air.add(gas, -moved);
     }
     this.air.update((a) => a);
-  }
-
-  #endocrine(soup: Soup): void {
-    for (const gene of this.expressed.endocrine) {
-      const level = soup.get(gene.watches);
-      const firing = gene.when === "above" ? level > gene.threshold : level < gene.threshold;
-      if (firing) soup.add(gene.secretes, gene.amount);
-    }
   }
 
   #decay(soup: Soup): void {

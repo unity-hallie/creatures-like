@@ -14,7 +14,7 @@
 
 import { chem, type ChemId } from "./chemistry.js";
 import type { Moiety, Reaction } from "./stoichiometry.js";
-import { LOCKS, type Keys, type Lock } from "./digestion.js";
+import { keysFor, LOCKS, type Keys, type Lock } from "./digestion.js";
 import type { Stream } from "./dice.js";
 
 export const CHEMS = {
@@ -202,8 +202,12 @@ export const WILD_TYPE: Genome = [
 
   // ── the energy path ────────────────────────────────────────────────────────
   {
-    kind: "reaction",
-    reaction: { slug: "digestion", reactants: [term(CHEMS.starch, 1)], products: [term(CHEMS.glucose, 1)], rate: 0.05 },
+    // Amylase. The animal's own lock-picking, on the easiest lock there is: starch sits
+    // in a single motif, so one key opens all of it cheaply. An animal that lost this
+    // gene would starve surrounded by fruit.
+    kind: "enzyme",
+    keys: keysFor(LOCKS.starch),
+    reaction: { slug: "amylase", reactants: [term(CHEMS.starch, 1)], products: [term(CHEMS.glucose, 1)], rate: 0.05 },
   },
   {
     kind: "reaction",

@@ -63,6 +63,19 @@ export const PLANT: Genome = [
       rate: 0.07,
     },
   },
+  {
+    // Fruiting: a plant packing sugar into a form something else can carry off. Starch is
+    // the one lock nearly everything holds a key to, which is exactly the point of it —
+    // a plant that wanted its storage eaten would build it out of starch, and one that
+    // did not would build it out of lignin. Both happen.
+    kind: "reaction",
+    reaction: {
+      slug: "fruiting",
+      reactants: [term(CHEMS.glucose, 1)],
+      products: [term(CHEMS.starch, 1)],
+      rate: 0.04,
+    },
+  },
   { kind: "reaction", reaction: oxidiseGlucose("plant-respiration", 0.06) },
 ];
 
