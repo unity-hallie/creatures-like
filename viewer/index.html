@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>creatures-like — run viewer</title>
+<!-- scher is consumed from source, same as everywhere else in this repo; the server
+     transpiles it on request, so there is still no build step. See vitest.config.ts. -->
+<script type="importmap">
+  { "imports": { "scher/": "/scher/" } }
+</script>
+<style>
+  body { margin: 0; background: #101010; color: #b9b9b9; font: 12px ui-monospace, monospace; }
+  main { width: 1180px; margin: 0 auto; padding: 10px 0 24px; }
+  /* 1:1, never scaled. A wireframe this thin does not survive resampling, and a viewer
+     that quietly resamples is showing you a different picture than the PNG does. */
+  canvas { display: block; width: 1180px; height: 760px; image-rendering: pixelated; cursor: crosshair; }
+  #scrub { width: 100%; margin: 10px 0 6px; display: block; }
+  #bar { display: flex; gap: 14px; align-items: baseline; }
+  select { background: #1c1c1c; color: #b9b9b9; border: 1px solid #333; font: inherit; padding: 2px 4px; }
+  #hint { color: #6a6a6a; margin-left: auto; }
+</style>
+<main>
+  <canvas id="frame"></canvas>
+  <input id="scrub" type="range" min="0" max="0" value="0" step="1" />
+  <div id="bar">
+    <select id="run"></select>
+    <select id="view">
+      <option value="map">map</option>
+      <option value="dash">dash</option>
+      <option value="zoom">zoom</option>
+    </select>
+    <span id="status">loading…</span>
+    <span id="hint">← → to step · click a place on the map to zoom it · click again to go back</span>
+  </div>
+</main>
+<script type="module" src="/viewer/page.js"></script>

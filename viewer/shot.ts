@@ -1,8 +1,9 @@
 // Render a checkpoint to a PNG. The surface this project is looked at through.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { scene, sceneMap, sceneZoom, WIDTH, HEIGHT, type Frame } from "./scene.js";
+import { scene, sceneMap, sceneZoom, historyIndices, WIDTH, HEIGHT, type Frame } from "./scene.js";
 import { Canvas, rasterise } from "./raster.js";
+import { png } from "./png.js";
 
 const args = new Map<string, string>();
 for (const a of process.argv.slice(2)) {
@@ -28,12 +29,9 @@ for (const i of picked) {
   const entry = manifest.frames[i];
   if (!entry) continue;
   const frame = JSON.parse(readFileSync(join(run, entry.file), "utf8")) as Frame;
-  // history up to this frame, subsampled so a long run still draws in a small box
-  const upto = manifest.frames.slice(0, i);
-  const stride = Math.max(1, Math.ceil(upto.length / 60));
-  const history = upto
-    .filter((_, n) => n % stride === 0)
-    .map((e) => JSON.parse(readFileSync(join(run, e.file), "utf8")) as Frame);
+  const history = historyIndices(i).map(
+    (n) => JSON.parse(readFileSync(join(run, manifest.frames[n].file), "utf8")) as Frame,
+  );
   const view = args.get("view") ?? "dash";
   const zoomAt = Number(args.get("place") ?? 0);
   const ops =
@@ -43,6 +41,6 @@ for (const i of picked) {
   const tag = view === "zoom" ? `zoom${zoomAt}` : view;
   const file = join(out, `${tag}-f${String(i).padStart(5, "0")}-t${frame.tick}.png`);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, canvas.png());
+  writeFileSync(file, png(canvas));
   console.log(file);
 }

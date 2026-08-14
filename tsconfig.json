@@ -11,8 +11,9 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "scher": ["../scher/src/index.ts"]
+      "scher": ["../scher/src/index.ts"],
+      "scher/*": ["../scher/src/*"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "muslin/**/*.ts", "vitest.config.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "muslin/**/*.ts", "viewer/**/*.ts", "vitest.config.ts"]
 }

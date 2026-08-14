@@ -1,11 +1,16 @@
-// A PNG writer with no dependencies, so the wireframe can be LOOKED AT by whoever is
-// driving — including an agent, which is the point. Node ships zlib; everything else here
-// is a few dozen lines of arithmetic.
+// THE RASTERISER — ops in, greyscale pixels out. The only place ops become pixels, for
+// anyone: the PNG an agent reads and the canvas a human scrubs are the same buffer from
+// this file, and `viewer/serve.ts` hands the browser this exact source.
+//
+// Which is why nothing here may import `node:` anything. Sharing the ops between two
+// backends would NOT protect the invariant — identical ops drawn with a real font and with
+// the 3x5 table below are different pictures — so the sharing has to happen a layer lower,
+// here. `test/viewer.test.ts` walks the import graph and goes red if this file reaches for
+// Node. PNG encoding, which genuinely needs zlib, lives in `png.ts`.
 //
 // The font is 3x5 because labels are what make a wireframe readable, and a picture of
 // unlabelled bars is a mood ring. Small, blocky and legible beats absent.
 
-import { deflateSync } from "node:zlib";
 import type { Op } from "./scene.js";
 
 const FONT: Record<string, string[]> = {
@@ -99,50 +104,24 @@ export class Canvas {
     }
   }
 
-  /** Greyscale PNG. */
-  png(): Buffer {
-    const raw = Buffer.alloc((this.width + 1) * this.height);
-    for (let y = 0; y < this.height; y++) {
-      raw[y * (this.width + 1)] = 0; // filter: none
-      for (let x = 0; x < this.width; x++) {
-        raw[y * (this.width + 1) + 1 + x] = this.px[y * this.width + x];
-      }
-    }
-    const chunk = (type: string, data: Buffer): Buffer => {
-      const len = Buffer.alloc(4);
-      len.writeUInt32BE(data.length);
-      const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
-      const crc = Buffer.alloc(4);
-      crc.writeUInt32BE(crc32(body) >>> 0);
-      return Buffer.concat([len, body, crc]);
-    };
-    const ihdr = Buffer.alloc(13);
-    ihdr.writeUInt32BE(this.width, 0);
-    ihdr.writeUInt32BE(this.height, 4);
-    ihdr[8] = 8; // bit depth
-    ihdr[9] = 0; // greyscale
-    return Buffer.concat([
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      chunk("IHDR", ihdr),
-      chunk("IDAT", deflateSync(raw)),
-      chunk("IEND", Buffer.alloc(0)),
-    ]);
-  }
 }
 
-let CRC_TABLE: number[] | null = null;
-function crc32(buf: Buffer): number {
-  if (!CRC_TABLE) {
-    CRC_TABLE = [];
-    for (let n = 0; n < 256; n++) {
-      let c = n;
-      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-      CRC_TABLE[n] = c;
-    }
+/** The same greyscale, as a browser's ImageData wants it.
+ *
+ *  This and `png()` are the two ways one buffer leaves this file, and they are the last
+ *  place the human's picture and the agent's picture could drift apart. So the test does
+ *  not take that on faith: it decodes the PNG bytes back to pixels and asserts they equal
+ *  this function's output, frame by frame. */
+export function rgba(canvas: Canvas): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(canvas.px.length * 4);
+  for (let i = 0; i < canvas.px.length; i++) {
+    const v = canvas.px[i];
+    out[i * 4] = v;
+    out[i * 4 + 1] = v;
+    out[i * 4 + 2] = v;
+    out[i * 4 + 3] = 255;
   }
-  let crc = 0xffffffff;
-  for (const byte of buf) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-  return crc ^ 0xffffffff;
+  return out;
 }
 
 /** Draw a scene's ops onto a canvas. The ONLY place ops become pixels. */

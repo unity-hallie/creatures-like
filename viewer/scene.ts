@@ -77,6 +77,19 @@ function spark(ops: Op[], x: number, y: number, w: number, h: number, series: nu
   }
 }
 
+/** Which earlier frames feed the sparklines when frame `upto` is drawn.
+ *
+ *  The window is part of the picture, not a detail of how you loaded it: two callers that
+ *  subsampled differently would draw visibly different sparklines from the same frame and
+ *  both look right. So it is decided once, here, and the PNG CLI and the browser page both
+ *  ask. Returns indices rather than frames so a caller reading off disk can stay lazy. */
+export function historyIndices(upto: number, budget = 60): number[] {
+  const stride = Math.max(1, Math.ceil(upto / budget));
+  const out: number[] = [];
+  for (let i = 0; i < upto; i += stride) out.push(i);
+  return out;
+}
+
 export function scene(frame: Frame, history: Frame[] = []): Op[] {
   const ops: Op[] = [];
 
@@ -282,20 +295,29 @@ function ring(ops: Op[], cx: number, cy: number, r: number, dim: number, steps =
   }
 }
 
+const MAP_CX = WIDTH / 2 - 130;
+const MAP_CY = HEIGHT / 2 + 10;
+const MAP_R = 250;
+
+/** Where the map puts place `index` of `count`.
+ *
+ *  Exported because the page hit-tests clicks against it to pick a place to zoom. If the
+ *  click and the drawing worked this out separately they would drift, and a viewer whose
+ *  clicks land next to what they appear to land on is the same lie as a viewer that draws
+ *  the wrong picture — just slower to notice. */
+export function mapPlaceAt(index: number, count: number): { x: number; y: number } {
+  const a = (index / count) * Math.PI * 2 - Math.PI / 2;
+  return { x: MAP_CX + Math.cos(a) * MAP_R, y: MAP_CY + Math.sin(a) * MAP_R * 0.72 };
+}
+
 export function sceneMap(frame: Frame, history: Frame[] = []): Op[] {
   const ops: Op[] = [];
-  const cx = WIDTH / 2 - 130;
-  const cy = HEIGHT / 2 + 10;
-  const R = 250;
 
   ops.push({ op: "text", x: COL_X, y: 22, s: `MAP  TICK ${frame.tick}`, scale: 2 });
   ops.push({ op: "text", x: COL_X, y: 46, s: `YEAR ${frame.yearPhase.toFixed(2)}  C ${frame.totals.carbon.toFixed(1)}  N ${frame.totals.nitrogen.toFixed(1)}  MIG ${frame.migrations}`, dim: 0.8 });
   ops.push({ op: "line", x1: COL_X, y1: 58, x2: WIDTH - COL_X, y2: 58, dim: 0.4 });
 
-  const at = (i: number) => {
-    const a = (i / frame.places.length) * Math.PI * 2 - Math.PI / 2;
-    return { x: cx + Math.cos(a) * R, y: cy + Math.sin(a) * R * 0.72 };
-  };
+  const at = (i: number) => mapPlaceAt(i, frame.places.length);
 
   // routes first, so nodes sit on top
   const peak = Math.max(1e-9, ...frame.routes.map((r) => Math.abs(r.gradient)));

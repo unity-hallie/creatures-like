@@ -12,7 +12,9 @@
     "sim:build": "vite build --ssr sim/run.ts --config vitest.config.ts --outDir sim/dist",
     "sim": "npm run sim:build && node sim/dist/run.js",
     "shot:build": "vite build --ssr viewer/shot.ts --config vitest.config.ts --outDir viewer/dist",
-    "shot": "npm run shot:build && node viewer/dist/shot.js"
+    "shot": "npm run shot:build && node viewer/dist/shot.js",
+    "serve:build": "vite build --ssr viewer/serve.ts --config vitest.config.ts --outDir viewer/dist",
+    "serve": "npm run serve:build && node viewer/dist/serve.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

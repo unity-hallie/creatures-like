@@ -23,7 +23,14 @@ hungry creature approaches food because reward chemistry strengthened that synap
 npm install
 npm test                    # SCHER_SRC=/path/to/scher/src if not a sibling checkout
 npm run muslin:ceiling      # prints the table below
+npm run serve               # browse a run at localhost:8080 — a canvas and a scrubber
+npm run shot -- --run=runs/long-05 --frame=last --view=map   # one frame, as a PNG
 ```
+
+The page and the PNG are the same renderer, not two that agree: the server hands the
+browser `viewer/scene.ts` and `viewer/raster.ts` themselves, so a human scrubbing frames
+and an agent reading a shot see the same pixels. `test/viewer.test.ts` is what keeps that
+true — it decodes a PNG and diffs it against what the page would blit.
 
 Built on [scher](https://github.com/Unity-Environmental-University/scher), consumed from
 source — its `dist/` is gitignored upstream with no `prepare` script, so a git-dependency
