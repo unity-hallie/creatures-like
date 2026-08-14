@@ -12,10 +12,13 @@
 // changes downstream, with no fire parameter touched.
 
 import { Soup, transfer, type ChemId } from "./chemistry.js";
+import { applyReaction } from "./stoichiometry.js";
 import { Dice } from "./dice.js";
 import { CARBON, CHEMS, SUBSTRATE_LOCKS, type Genome } from "./genome.js";
 import { FUNGUS, PLANT } from "./flora.js";
 import { Organism } from "./organism.js";
+import { bind, Lobe } from "./brain.js";
+import { WILD_TYPE } from "./genome.js";
 
 /** Species an organism can draw from its surroundings, and where each is kept. Signals
  *  and internal intermediates are deliberately absent: a creature does not absorb
@@ -41,6 +44,8 @@ export interface EcosystemOptions {
   fungusGenome?: Genome;
   plants?: number;
   fungi?: number;
+  grazers?: number;
+  grazerGenome?: Genome;
   /** oxygen the world starts with; the fire regime is sensitive to this by design */
   oxygen?: number;
 }
@@ -55,6 +60,18 @@ interface Resident {
   organism: Organism;
   at: number;
 }
+
+/** An animal is a Resident that also steers. Everything else about it — metabolism,
+ *  digestion, egestion, breathing — runs the same machinery a fungus runs. */
+interface Grazer extends Resident {
+  lobe: Lobe;
+  meals: number;
+}
+
+/** Starch in a patch above this reads as food to a grazer. */
+const FORAGE_THRESHOLD = 0.05;
+/** Share of a patch's starch taken in one mouthful. */
+const BITE = 0.5;
 
 /** Sunlight delivered per patch per tick. Crosses the boundary from outside the model,
  *  like food and unlike everything else — see the file header. */
@@ -78,10 +95,12 @@ export class Ecosystem {
   readonly dice: Dice;
   readonly plants: Resident[] = [];
   readonly fungi: Resident[] = [];
+  readonly grazers: Grazer[] = [];
 
   tick = 0;
   ignitions = 0;
   deaths = 0;
+  meals = 0;
 
   readonly #plantGenome: Genome;
 
@@ -108,6 +127,22 @@ export class Ecosystem {
         at: Math.floor(spawn.next() * width),
       });
     }
+    for (let i = 0; i < (opts.grazers ?? 0); i++) {
+      const organism = new Organism({
+        genome: opts.grazerGenome ?? WILD_TYPE,
+        initial: [
+          [CHEMS.glucose, 0.6],
+          [CHEMS.atp, 4],
+          [CHEMS.adp, 12],
+        ],
+      });
+      this.grazers.push({
+        organism,
+        lobe: new Lobe(organism.expressed, this.dice.at("spawn")),
+        at: Math.floor(spawn.next() * width),
+        meals: 0,
+      });
+    }
     for (let i = 0; i < (opts.fungi ?? 4); i++) {
       this.fungi.push({
         organism: new Organism({
@@ -132,7 +167,7 @@ export class Ecosystem {
     };
     count(this.air);
     for (const patch of this.patches) count(patch.soup);
-    for (const r of [...this.plants, ...this.fungi]) count(r.organism.soup);
+    for (const r of [...this.plants, ...this.fungi, ...this.grazers]) count(r.organism.soup);
     return total;
   }
 
@@ -170,6 +205,54 @@ export class Ecosystem {
       if (indigestible <= 0) continue;
       transfer(resident.organism.soup, patch.soup, substrate, held * indigestible * EGEST_RATE);
     }
+  }
+
+  /** What a grazer can see: fruit to either side, fruit underfoot, and its own fuel
+   *  state. Identical in shape to the single-creature rig, but the food is real — a
+   *  patch has starch because a plant put it there out of air and light. */
+  #forage(grazer: Grazer): void {
+    const patch = this.patches[grazer.at];
+    let nearest: number | null = null;
+    for (let i = 0; i < this.patches.length; i++) {
+      if (this.patches[i].soup.get(CHEMS.starch) < FORAGE_THRESHOLD) continue;
+      if (nearest === null || Math.abs(i - grazer.at) < Math.abs(nearest - grazer.at)) nearest = i;
+    }
+
+    const sensed = [
+      nearest !== null && nearest < grazer.at ? 1 : 0,
+      nearest !== null && nearest > grazer.at ? 1 : 0,
+      patch.soup.get(CHEMS.starch) >= FORAGE_THRESHOLD ? 1 : 0,
+      Math.max(0, 1 - grazer.organism.soup.get(CHEMS.glucose) / 0.6),
+    ];
+
+    const picked = grazer.lobe.choose(sensed, bind(grazer.organism.expressed, grazer.organism.soup), this.dice.at("tiebreak"));
+    const action = grazer.lobe.actions[picked];
+
+    let succeeded = false;
+    if (action === "left" && grazer.at > 0) {
+      grazer.at--;
+      succeeded = true;
+    } else if (action === "right" && grazer.at < this.patches.length - 1) {
+      grazer.at++;
+      succeeded = true;
+    } else if (action === "eat") {
+      const taken = transfer(patch.soup, grazer.organism.soup, CHEMS.starch, patch.soup.get(CHEMS.starch) * BITE);
+      // a mouthful takes the surrounding structure too — which the animal cannot open,
+      // so it comes out the other end for a fungus to deal with
+      transfer(patch.soup, grazer.organism.soup, CHEMS.cellulose, taken * 0.4);
+      if (taken > 0) {
+        succeeded = true;
+        grazer.meals++;
+        this.meals++;
+      }
+    }
+
+    for (const gene of grazer.organism.expressed.emittersOf(action)) {
+      if (gene.when === "success" && !succeeded) continue;
+      if (gene.when === "failure" && succeeded) continue;
+      grazer.organism.soup.add(gene.chem, gene.amount);
+    }
+    for (const cost of grazer.organism.expressed.costsOf(action)) applyReaction(cost, grazer.organism.soup);
   }
 
   #litterfall(resident: Resident): void {
@@ -246,6 +329,21 @@ export class Ecosystem {
       this.#litterfall(resident);
       resident.organism.checkVitality();
       if (!resident.organism.alive) this.#decompose(resident);
+    }
+
+    for (const grazer of this.grazers) {
+      if (!grazer.organism.alive) continue;
+      this.#forage(grazer);
+      this.#uptakeFor(grazer);
+      grazer.organism.digest();
+      grazer.organism.secrete();
+      grazer.organism.react();
+      grazer.lobe.consolidate(bind(grazer.organism.expressed, grazer.organism.soup));
+      grazer.organism.decay();
+      this.#vent(grazer);
+      this.#egest(grazer);
+      grazer.organism.checkVitality();
+      if (!grazer.organism.alive) this.#decompose(grazer);
     }
 
     for (const resident of this.fungi) {

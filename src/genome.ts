@@ -305,10 +305,14 @@ export const WILD_TYPE: Genome = [
   { kind: "receptor", chem: CHEMS.serotonin, target: "malaise", gain: 0.5 },
   { kind: "receptor", chem: CHEMS.co2, target: "malaise", gain: 0.3 },
 
-  // ── what doing things does to the soup. These cross the boundary: food and air come
-  //    from a world this model does not track atom-for-atom. ──────────────────
-  { kind: "emitter", onAction: "eat", when: "success", chem: CHEMS.starch, amount: 1.1 },
-  { kind: "emitter", onAction: "eat", when: "success", chem: CHEMS.proteins, amount: 0.3 },
+  // ── what doing things does to the soup ─────────────────────────────────────
+  //
+  // SIGNALS ONLY. Emitters here secrete hormones, which a body genuinely makes out of
+  // almost nothing; they must never mint MATTER. An earlier version had eating emit
+  // starch and protein — honest while food arrived by fiat, fraud the moment the animal
+  // was placed in a real ecosystem, where it took a mouthful from the patch AND conjured
+  // a second one from nowhere. Total world carbon went from 102 to 15,020 in 900 ticks.
+  // Where food actually comes from is the world's business, not the genome's.
   { kind: "emitter", onAction: "eat", when: "success", chem: CHEMS.dopamine, amount: 1.0 },
   { kind: "emitter", onAction: "eat", when: "success", chem: CHEMS.acetylcholine, amount: 0.5 },
   { kind: "emitter", onAction: "eat", when: "failure", chem: CHEMS.adrenaline, amount: 0.12 },

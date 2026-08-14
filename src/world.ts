@@ -135,9 +135,20 @@ export class World {
     return true;
   }
 
+  /** THE RIG'S ONE FIAT. This is a controlled single-creature testbed, so food appears
+   *  and is swallowed whole — carbon enters from outside the ledger here and nowhere
+   *  else. The genome deliberately does NOT do this; a genome that could conjure food
+   *  would conjure it in the ecosystem too, where the carbon has to balance. See
+   *  ecology.ts for the version where a plant has to make the meal first. */
+  static readonly MOUTHFUL: ReadonlyArray<readonly [ChemId, number]> = [
+    [CHEMS.starch, 1.1],
+    [CHEMS.proteins, 0.3],
+  ];
+
   eatHere(): boolean {
     if (!this.food.has(this.position)) return false;
     this.food.delete(this.position);
+    for (const [id, amount] of World.MOUTHFUL) this.soup.get().add(id, amount);
     this.meals++;
     this.chronicle.lay({
       slug: `meal-${this.meals}`,
