@@ -33,17 +33,17 @@ mkdirSync(OUT, { recursive: true });
 function buildWorld(): Geography {
   const places = [
     new Ecosystem({ seed: SEED + 1, name: "boreal", latitude: 0.95, plantGenome: TREE, fungusGenome: SAPROPHYTE,
-      plants: 26, fungi: 10, grazers: 8, width: 24, volume: 90, soilAmmonia: 0.6 }),
+      plants: 16, fungi: 26, grazers: 8, width: 24, volume: 90, soilAmmonia: 0.6 }),
     new Ecosystem({ seed: SEED + 2, name: "taiga", latitude: 0.6, plantGenome: TREE, fungusGenome: COMPLETE_ROTTER,
-      plants: 26, fungi: 12, grazers: 8, width: 24, volume: 100, soilAmmonia: 0.5 }),
+      plants: 16, fungi: 28, grazers: 8, width: 24, volume: 100, soilAmmonia: 0.5 }),
     new Ecosystem({ seed: SEED + 3, name: "steppe", latitude: 0.2, plantGenome: GRASS, fungusGenome: SAPROPHYTE,
-      plants: 30, fungi: 12, grazers: 12, width: 24, volume: 130, soilAmmonia: 0.3 }),
+      plants: 18, fungi: 30, grazers: 12, width: 24, volume: 130, soilAmmonia: 0.3 }),
     new Ecosystem({ seed: SEED + 4, name: "savanna", latitude: -0.2, plantGenome: GRASS, fungusGenome: COMPLETE_ROTTER,
-      plants: 30, fungi: 12, grazers: 12, width: 24, volume: 130, soilAmmonia: 0.25 }),
+      plants: 18, fungi: 30, grazers: 12, width: 24, volume: 130, soilAmmonia: 0.25 }),
     new Ecosystem({ seed: SEED + 5, name: "wetland", latitude: -0.6, plantGenome: MOSS, fungusGenome: SAPROPHYTE,
-      plants: 28, fungi: 14, grazers: 6, width: 24, volume: 110, soilAmmonia: 0.8 }),
+      plants: 18, fungi: 30, grazers: 6, width: 24, volume: 110, soilAmmonia: 0.8 }),
     new Ecosystem({ seed: SEED + 6, name: "scrub", latitude: -0.95, plantGenome: LEGUME, fungusGenome: COMPLETE_ROTTER,
-      plants: 24, fungi: 10, grazers: 8, width: 24, volume: 95, soilAmmonia: 0.05 }),
+      plants: 14, fungi: 26, grazers: 8, width: 24, volume: 95, soilAmmonia: 0.05 }),
   ];
 
   // a chain with one long way round, so the far ends are genuinely far
