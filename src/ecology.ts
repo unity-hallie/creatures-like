@@ -53,6 +53,16 @@ export interface EcosystemOptions {
   dinitrogen?: number;
   /** usable nitrogen in the ground. Set it low to make legumes matter. */
   soilAmmonia?: number;
+  /** how much room the air has. Pressure is n·R·T/V, so a small place pressurises fast. */
+  volume?: number;
+  /** in model kelvin. Drives pressure, and therefore wind. */
+  temperature?: number;
+  /** sunlight per patch per tick — a place, not a constant, once there are places */
+  light?: number;
+  /** -1 to 1: how hard the year hits here. */
+  latitude?: number;
+  /** a name, for a human reading a log. Nothing reads it. */
+  name?: string;
 }
 
 export class Patch {
@@ -102,6 +112,19 @@ export class Ecosystem {
   readonly fungi: Resident[] = [];
   readonly grazers: Grazer[] = [];
 
+  /** the air's room to move in */
+  volume: number;
+  /** current temperature. Weather writes here; pressure reads it. */
+  temperature: number;
+  readonly baseTemperature: number;
+  /** sunlight reaching each patch. Geography writes here every tick once there is a sky
+   *  — day, night and season are all this number moving. */
+  light: number;
+  readonly baseLight: number;
+  /** -1 to 1. Which way this place leans into the year; the equator barely notices. */
+  readonly latitude: number;
+  readonly name: string;
+
   tick = 0;
   ignitions = 0;
   deaths = 0;
@@ -114,6 +137,13 @@ export class Ecosystem {
     this.patches = Array.from({ length: width }, () => new Patch());
     this.dice = new Dice(opts.seed ?? 1);
     this.#plantGenome = opts.plantGenome ?? PLANT;
+    this.volume = opts.volume ?? 100;
+    this.temperature = opts.temperature ?? 288;
+    this.baseTemperature = this.temperature;
+    this.light = opts.light ?? LIGHT_PER_TICK;
+    this.baseLight = this.light;
+    this.latitude = opts.latitude ?? 0;
+    this.name = opts.name ?? "place";
 
     this.air.set(CHEMS.o2, opts.oxygen ?? 40);
     this.air.set(CHEMS.co2, 60);
@@ -362,7 +392,7 @@ export class Ecosystem {
   }
 
   step(): void {
-    for (const patch of this.patches) patch.soup.set(CHEMS.light, LIGHT_PER_TICK);
+    for (const patch of this.patches) patch.soup.set(CHEMS.light, this.light);
 
     // SHADING. Light is finite per patch and taken in height order, so a tall plant
     // drinks first and a short one gets the remainder. This is the only competition in
@@ -424,5 +454,22 @@ export class Ecosystem {
 
   oxygen(): number {
     return this.air.get(CHEMS.o2);
+  }
+
+  /** Gas in the air, in model moles. Only the gases — solids sit in patches and exert no
+   *  pressure, which is the whole reason to keep them apart. */
+  moles(): number {
+    return this.air.get(CHEMS.o2) + this.air.get(CHEMS.co2) + this.air.get(CHEMS.n2);
+  }
+
+  /** Ideal gas, with R folded into the model's units: P = nT/V.
+   *
+   *  This is what makes weather rather than plumbing. An earlier build kept ONE global
+   *  well-mixed atmosphere and equalised it by a fixed transfer rate, which pinned oxygen
+   *  at the same number in every run — the number was a property of the rate, not of the
+   *  biology. Pressure gives gases a reason to move that the biology can actually push
+   *  on. */
+  pressure(): number {
+    return this.volume <= 0 ? 0 : (this.moles() * this.temperature) / this.volume;
   }
 }
