@@ -77,6 +77,10 @@ export const LOCKS = {
   lipids: vec(0, 0, 0, 0.5, 0.3, 0.2, 0, 0, 0, 0, 0, 0),
   proteins: vec(0, 0, 0, 0, 0, 0.3, 0.3, 0.2, 0.2, 0, 0, 0),
   lignin: vec(0.05, 0.08, 0.07, 0.09, 0.08, 0.08, 0.09, 0.08, 0.09, 0.1, 0.09, 0.1),
+  /** Heat has already done the hard part. One motif, the same as starch — which is the
+   *  whole point of cooking: it moves a substrate from a lock that needs a good enzyme to
+   *  one that needs almost none. */
+  cooked: vec(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
 } as const;
 
 /** Keys that open one named lock completely — the shape a well-adapted enzyme has. */

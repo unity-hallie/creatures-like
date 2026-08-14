@@ -38,6 +38,10 @@ export const CHEMS = {
   /** indigestible structure — until something evolves the gene for it. Lignin arriving
    *  before anything could rot it is why the Carboniferous buried coal and burned. */
   lignin: chem("lignin"),
+  /** what heat has already taken apart. Cooking gelatinises starch and unfolds protein,
+   *  which is decryption done OUTSIDE the body — the same carbon and nitrogen behind a
+   *  much easier lock. */
+  cooked: chem("cooked"),
   /** sunlight, carried as a chemical so photosynthesis can be an ordinary reaction with
    *  an ordinary limiting reagent rather than a special case */
   light: chem("light"),
@@ -111,6 +115,7 @@ export const MOIETIES: ReadonlyArray<readonly [string, Moiety]> = [
 function NITROGEN_COUNTS(): Moiety {
   return [
     [CHEMS.proteins, 1],
+    [CHEMS.cooked, 1],
     [CHEMS.ammonia, 1],
     [CHEMS.solanine, 1],
     [CHEMS.n2, 2],
@@ -136,6 +141,7 @@ function CARBON_COUNTS(): Moiety {
     [CHEMS.proteins, 6],
     [CHEMS.cellulose, 6],
     [CHEMS.lignin, 6],
+    [CHEMS.cooked, 6],
     [CHEMS.ethanol, 2],
     [CHEMS.solanine, 6],
     [CHEMS.cucurbitacin, 6],
@@ -152,6 +158,7 @@ export const CARBON: ReadonlyArray<readonly [ChemId, number]> = CARBON_COUNTS();
  *  it and why unlocking something else is worth spending ATP on. */
 export const SUBSTRATE_LOCKS: ReadonlyArray<readonly [ChemId, Lock]> = [
   [CHEMS.starch, LOCKS.starch],
+  [CHEMS.cooked, LOCKS.cooked],
   [CHEMS.cellulose, LOCKS.cellulose],
   [CHEMS.lipids, LOCKS.lipids],
   [CHEMS.proteins, LOCKS.proteins],
