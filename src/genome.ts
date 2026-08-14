@@ -212,6 +212,24 @@ export type ReceptorGene = { kind: "receptor"; chem: ChemId; target: ReceptorTar
  *  to the brain. A word that reaches your pain pole makes cortisol; cortisol binds
  *  punishment; consolidation runs negative on whatever you were just doing. Words move a
  *  creature the way weather does, through the same chemistry as everything else. */
+/**
+ * COMPETENCE — the ability to shed genetic material, and to take up what others shed.
+ *
+ * Not a switch between sexual and asexual. Sex and reproduction were separate processes
+ * originally and still are in bacteria: they reproduce by fission and SEPARATELY swap DNA
+ * by transformation, conjugation, transduction. So reproduction here stays mitotic
+ * throughout, and what evolves is this side channel.
+ *
+ * `donate` is the rate of shedding a packet of one's own genes into the surroundings.
+ * `uptake` is the rate of taking a stray packet up and integrating it. Neither alone does
+ * anything interesting; together, across a population, they ARE recombination — and a
+ * lineage that pays for both has invented sex without anything in the engine knowing the
+ * word.
+ *
+ * Both cost ATP, which is the whole question sex poses: shuffling is not free, so it has
+ * to earn its price against simply cloning. Selection gets to answer that rather than me.
+ */
+export type CompetenceGene = { kind: "competence"; donate: number; uptake: number };
 export type PsycheGene = { kind: "psyche"; when: "pleasant" | "unpleasant"; secretes: ChemId; amount: number };
 /** AN INNATE, MEANINGLESS TOKEN.
  *
@@ -244,6 +262,7 @@ export type Gene =
   | EndocrineGene
   | ReceptorGene
   | PsycheGene
+  | CompetenceGene
   | VocabularyGene
   | ResolutionGene
   | EmitterGene
@@ -406,6 +425,67 @@ export function receptorsFor(genome: Genome, target: ReceptorTarget): ReceptorGe
   return genome.filter((g): g is ReceptorGene => g.kind === "receptor" && g.target === target);
 }
 
+/**
+ * CROSSOVER. Two flat gene lists become one, gene by gene.
+ *
+ * The flatness that has carried this whole design pays again here: because every layer
+ * lives in one list, a single crossover reshuffles chemistry, endocrine wiring, digestion
+ * keys and brain shape together. A child can inherit its mother's ligninase and its
+ * father's cortisol threshold, and nothing had to be taught how to combine them.
+ *
+ * Lists of unequal length keep the longer tail — a gene the other parent lacks is not a
+ * reason to lose it.
+ */
+export function crossover(a: Genome, b: Genome, stream: Stream): Genome {
+  const shared = Math.min(a.length, b.length);
+  const child: Gene[] = [];
+  for (let i = 0; i < shared; i++) child.push(stream.next() < 0.5 ? a[i] : b[i]);
+  const longer = a.length > b.length ? a : b;
+  for (let i = shared; i < longer.length; i++) child.push(longer[i]);
+  return child;
+}
+
+/** A shed packet: some of an organism's genes, with the slots they came from. Loose in
+ *  the world, going nowhere on its own — the naked DNA of transformation. */
+export interface Packet {
+  genes: Array<{ index: number; gene: Gene }>;
+  /** packets perish; genetic material outside a body does not keep */
+  age: number;
+}
+
+/** Shed a fragment. A haploid donation in the only sense this model can mean it: part of
+ *  a genome, not a whole one, offered without any partner in view. */
+export function shed(genome: Genome, stream: Stream, share = 0.25): Packet {
+  const genes: Packet["genes"] = [];
+  for (let i = 0; i < genome.length; i++) {
+    if (stream.next() < share) genes.push({ index: i, gene: genome[i] });
+  }
+  return { genes, age: 0 };
+}
+
+/**
+ * Take up a packet and integrate it, slot by slot.
+ *
+ * Integration only lands where the KINDS agree — a receptor gene can replace a receptor
+ * gene and cannot replace a lobe. That is not a safety rail bolted on; it is what makes
+ * the result a viable organism instead of a corpse, and it is why real transformation
+ * needs homology too.
+ */
+export function recombine(genome: Genome, packet: Packet, stream: Stream): Genome {
+  const next = [...genome];
+  for (const { index, gene } of packet.genes) {
+    if (index >= next.length) continue;
+    if (next[index].kind !== gene.kind) continue;
+    if (stream.next() < 0.6) next[index] = gene;
+  }
+  return next;
+}
+
+export function competenceOf(genome: Genome): { donate: number; uptake: number } {
+  const gene = genome.find((g): g is CompetenceGene => g.kind === "competence");
+  return { donate: gene?.donate ?? 0, uptake: gene?.uptake ?? 0 };
+}
+
 export function reactionsOf(genome: Genome): Reaction[] {
   return genome
     .filter((g): g is ReactionGene | CostGene | EnzymeGene =>
@@ -445,6 +525,12 @@ export function mutate(genome: Genome, stream: Stream, strength = 0.1): Genome {
         return { ...gene, gain: gene.gain * jitter() };
       case "psyche":
         return { ...gene, amount: gene.amount * jitter() };
+      case "competence":
+        return {
+          ...gene,
+          donate: Math.max(0, gene.donate * jitter()),
+          uptake: Math.max(0, gene.uptake * jitter()),
+        };
       case "vocabulary":
         // a mutated token is simply a DIFFERENT arbitrary token. Nothing downstream reads
         // it for content, so nothing downstream notices anything but the change of

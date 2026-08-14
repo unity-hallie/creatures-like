@@ -26,7 +26,9 @@ export interface OrganismOptions {
 }
 
 export class Organism {
-  readonly expressed: Expressed;
+  /** kept, not just expressed: a parent has to be able to hand it on */
+  genome: Genome;
+  expressed: Expressed;
   readonly soup: Soup;
   alive = true;
   age = 0;
@@ -35,9 +37,18 @@ export class Organism {
   readonly #tolerance: number;
 
   constructor(opts: OrganismOptions) {
+    this.genome = opts.genome;
     this.expressed = express(opts.genome);
     this.soup = opts.soup ?? new Soup(opts.initial ?? []);
     this.#tolerance = opts.tolerance ?? 40;
+  }
+
+  /** Take on a changed genome mid-life and re-express it. Transformation alters the
+   *  recipe of a body that keeps living — the organism does not restart, it just runs on
+   *  different instructions from here. */
+  adopt(genome: Genome): void {
+    this.genome = genome;
+    (this as { expressed: Expressed }).expressed = express(genome);
   }
 
   /** How much of a substrate this genome's best enzyme can actually open. Zero means the

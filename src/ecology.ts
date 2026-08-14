@@ -14,7 +14,7 @@
 import { Soup, transfer, type ChemId } from "./chemistry.js";
 import { applyReaction } from "./stoichiometry.js";
 import { Dice } from "./dice.js";
-import { CARBON, CHEMS, NITROGEN, SUBSTRATE_LOCKS, type Genome } from "./genome.js";
+import { CARBON, CHEMS, NITROGEN, SUBSTRATE_LOCKS, competenceOf, mutate, recombine, shed, type Genome, type Packet } from "./genome.js";
 import { FUNGUS, PLANT } from "./flora.js";
 import { Organism } from "./organism.js";
 import { bind, Lobe } from "./brain.js";
@@ -67,6 +67,9 @@ export interface EcosystemOptions {
 
 export class Patch {
   readonly soup = new Soup();
+  /** genetic material shed here and not yet taken up or perished. The naked DNA of
+   *  transformation: loose in the world, going nowhere on its own. */
+  packets: Packet[] = [];
   /** ticks remaining in an active fire */
   burning = 0;
 }
@@ -95,6 +98,15 @@ const LIGHT_PER_TICK = 1.4;
 const LITTERFALL = 0.035;
 /** Fraction of available substrate an organism absorbs per tick. */
 const UPTAKE = 0.3;
+/** Reserves an organism must hold before it can afford a child. */
+const BREEDING_THRESHOLD = 1.2;
+/** Share of the parent's matter that goes into the child. Nothing is created: a parent
+ *  pays for its offspring out of its own body, which is what reproduction costs. */
+const DOWRY = 0.35;
+/** A ceiling per place, so a runaway cannot eat the process. Resource limits should bind
+ *  first; this exists only so a bug cannot become a memory leak. */
+const CROWD_LIMIT = 120;
+
 /** Fraction of the indigestible portion egested per tick. */
 const EGEST_RATE = 0.4;
 /** Fuel below this will not carry a fire. */
@@ -128,6 +140,8 @@ export class Ecosystem {
   tick = 0;
   ignitions = 0;
   deaths = 0;
+  births = 0;
+  recombinations = 0;
   meals = 0;
 
   readonly #plantGenome: Genome;
@@ -322,6 +336,71 @@ export class Ecosystem {
     for (const cost of grazer.organism.expressed.costsOf(action)) applyReaction(cost, grazer.organism.soup);
   }
 
+  /**
+   * REPRODUCTION — the loop that was missing, and whose absence made me the optimiser.
+   *
+   * Without it, populations can only fall: organisms died, nothing was born, `mutate` was
+   * never once called in a run, and selection had nothing to act on. So the balance
+   * between producers and decomposers could never correct itself, and I hand-tuned the
+   * ratio across four runs instead — turning a knob on a machine built to turn its own.
+   *
+   * A parent pays for its child out of its own body, so nothing is created. The genome is
+   * copied through `mutate`, which means the mutation port finally does something and the
+   * digestion keys, endocrine thresholds and rates all become things the world can search
+   * rather than things I choose.
+   */
+  #breed(resident: Resident, cohort: Resident[]): void {
+    if (cohort.length >= CROWD_LIMIT) return;
+    const parent = resident.organism;
+    const reserves = parent.soup.get(CHEMS.atp) + parent.soup.get(CHEMS.glucose) + parent.soup.get(CHEMS.cellulose);
+    if (reserves < BREEDING_THRESHOLD) return;
+
+    const stream = this.dice.at("mutation");
+    // MITOSIS, and only mitosis. Recombination happens elsewhere and on its own schedule
+    // (see #transform), exactly as in the bacteria this is modelled on — sex and
+    // reproduction are separate processes and were separate first.
+    const child = new Organism({ genome: mutate(parent.genome, stream, 0.08) });
+    for (const [id] of parent.matter()) transfer(parent.soup, child.soup, id, parent.soup.get(id) * DOWRY);
+    for (const id of [CHEMS.atp, CHEMS.adp]) transfer(parent.soup, child.soup, id, parent.soup.get(id) * DOWRY);
+    cohort.push({ organism: child, at: resident.at });
+    this.births++;
+  }
+
+  /**
+   * TRANSFORMATION — shedding, and taking up what others shed.
+   *
+   * Reproduction stays mitotic. This runs BESIDE it, exactly as in bacteria, which is why
+   * it is not a reproductive mode: an organism sheds part of its genome into the ground,
+   * and another may pick it up and integrate it. Both cost ATP, so the population gets to
+   * discover whether shuffling is worth its price rather than being told.
+   *
+   * Packets perish. Genetic material outside a body does not keep, which is why this only
+   * works between neighbours and why it is a local process however global its effects.
+   */
+  #transform(resident: Resident): void {
+    const organism = resident.organism;
+    const { donate, uptake } = competenceOf(organism.genome);
+    if (donate <= 0 && uptake <= 0) return;
+    const patch = this.patches[resident.at];
+    const stream = this.dice.at("mutation");
+
+    if (donate > 0 && organism.soup.get(CHEMS.atp) > 0.3 && stream.next() < donate) {
+      organism.soup.add(CHEMS.atp, -0.05);
+      organism.soup.add(CHEMS.adp, 0.05);
+      patch.packets.push(shed(organism.genome, stream));
+    }
+
+    if (uptake > 0 && patch.packets.length > 0 && organism.soup.get(CHEMS.atp) > 0.3 && stream.next() < uptake) {
+      const taken = patch.packets.shift()!;
+      organism.soup.add(CHEMS.atp, -0.05);
+      organism.soup.add(CHEMS.adp, 0.05);
+      // a genome changed mid-life: the organism keeps its body and alters its recipe,
+      // which is what transformation actually does to a bacterium
+      organism.adopt(recombine(organism.genome, taken, stream));
+      this.recombinations++;
+    }
+  }
+
   #litterfall(resident: Resident): void {
     const patch = this.patches[resident.at];
     for (const structural of [CHEMS.cellulose, CHEMS.lignin]) {
@@ -408,6 +487,7 @@ export class Ecosystem {
       this.#litterfall(resident);
       resident.organism.checkVitality();
       if (!resident.organism.alive) this.#decompose(resident);
+      else { this.#transform(resident); this.#breed(resident, this.plants); }
     }
 
     for (const grazer of this.grazers) {
@@ -433,6 +513,12 @@ export class Ecosystem {
       this.#egest(resident);
       resident.organism.checkVitality();
       if (!resident.organism.alive) this.#decompose(resident);
+      else { this.#transform(resident); this.#breed(resident, this.fungi); }
+    }
+
+    for (const patch of this.patches) {
+      for (const packet of patch.packets) packet.age++;
+      if (patch.packets.length > 0) patch.packets = patch.packets.filter((p) => p.age < 40).slice(-8);
     }
 
     this.#ignite();
