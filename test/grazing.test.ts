@@ -52,7 +52,8 @@ test("grass builds almost no lignin, so grassland is fine fuel rather than deep 
 test("a grazer will eat the plant itself when no fruit is on the ground", () => {
   const eco = new Ecosystem({ seed: 1, plantGenome: GRASS, plants: 8, fungi: 3, grazers: 3 });
   for (let i = 0; i < 600; i++) eco.step();
-  expect(eco.meals).toBeGreaterThan(50);
+  // real meals, not nibbles — see closed-loop.test.ts for why this number fell
+  expect(eco.meals).toBeGreaterThan(5);
   // and grass tolerates it: tolerance is the growth rate, not a special rule
   expect(eco.plants.filter((p) => p.organism.alive).length).toBeGreaterThan(0);
 });

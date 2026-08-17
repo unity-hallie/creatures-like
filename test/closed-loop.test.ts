@@ -39,7 +39,16 @@ test("the animal eats food a plant made out of air and light", () => {
     // nothing places food by fiat in the ecosystem: every mouthful of starch was fixed
     // from CO2 by a plant, packed by its fruiting gene, and dropped where a grazer could
     // find it
-    expect(eco.meals).toBeGreaterThan(100);
+    // Was >100 when any nonzero nibble counted as a meal; now a mouthful has to be worth
+    // something, and the count fell to between 1 and 14 across seeds.
+    //
+    // THAT IS THE FINDING, and it explains what puzzled me for hours: no run ever showed a
+    // living grazer on its map. They were not feeding, they were nibbling — hundreds of
+    // sub-threshold takes that registered as meals and fed almost nothing. Honest
+    // accounting says a forest of eighteen plants over twenty-four patches barely supports
+    // one animal. Whether that is a fact about the model or about my stocking is the next
+    // question; it is not something to answer by lowering a threshold.
+    expect(eco.meals).toBeGreaterThan(0);
     expect(eco.patches.some((p) => p.soup.get(CHEMS.starch) > 0)).toBe(true);
   }
 });

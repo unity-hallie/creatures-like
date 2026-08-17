@@ -108,6 +108,15 @@ interface Grazer extends Resident {
 const FORAGE_THRESHOLD = 0.05;
 /** Share of a patch's starch taken in one mouthful. */
 const BITE = 0.5;
+/** The least a mouthful can be and still count as having eaten.
+ *
+ *  Decided HERE — where success is decided — rather than per food source, which is what
+ *  went wrong twice. Guarding the starch path alone just moved the free meal to the
+ *  cellulose path: grazing takes half of whatever a plant holds, which asymptotes toward
+ *  zero and never reaches it, so `taken > 0` was true forever and eating never failed.
+ *  One threshold at the decision point covers every source and any source added later. */
+const MOUTHFUL = 0.02;
+
 /** How much undigested food a gut holds. A stomach has volume.
  *
  *  Added because the trainer showed a creature eating 42 times in 43 ticks: all its
@@ -417,7 +426,7 @@ export class Ecosystem {
         }
       }
 
-      if (taken > 0) {
+      if (taken >= MOUTHFUL) {
         succeeded = true;
         grazer.meals++;
         this.meals++;
