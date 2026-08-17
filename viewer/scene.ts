@@ -479,3 +479,165 @@ export function sceneZoom(frame: Frame, index: number, history: Frame[] = []): O
   spark(ops, px, py, 120, 26, past.map((f) => f.places[index]?.air.CO2 ?? 0), "co2");
   return ops;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE CREATURE, CLOSE UP — the training surface.
+//
+// You cannot train what you cannot see. Reward lands on whatever fired RECENTLY, and the
+// eligibility trace decays at 0.7, which leaves three or four ticks of credit. So this view
+// exists to answer one question fast: what did it just do, and is the gate open?
+//
+// The trace panel is the important one and the one a status readout cannot replace. It
+// shows, per action, how much credit is still outstanding — so a reward pressed now is
+// visibly landing on something rather than on faith.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CreatureView {
+  id: string;
+  tick: number;
+  place: string;
+  at: number;
+  alive: boolean;
+  age: number;
+  /** every chemical it holds, by label */
+  soup: Record<string, number>;
+  /** what the receptors make of that soup right now */
+  binding: { learning: number; punishment: number; plasticity: number; drive: number; malaise: number };
+  senses: Array<{ name: string; value: number }>;
+  actions: string[];
+  /** weights[action][sense] */
+  weights: number[][];
+  /** traces[action][sense] — outstanding credit */
+  traces: number[][];
+  /** most recent first */
+  recent: Array<{ tick: number; action: string; succeeded: boolean }>;
+  /** words currently in mind, with what each is worth to this creature */
+  mind: Array<{ token: string; charge: number; grounded: boolean }>;
+  meals: number;
+}
+
+export function sceneCreature(view: CreatureView, history: number[] = []): Op[] {
+  const ops: Op[] = [];
+
+  ops.push({ op: "text", x: COL_X, y: 20, s: view.id.toUpperCase(), scale: 2 });
+  ops.push({
+    op: "text", x: COL_X + 300, y: 26, dim: 0.8,
+    s: `${view.place} p${view.at}  tick ${view.tick}  age ${view.age}  meals ${view.meals}`,
+  });
+  if (!view.alive) {
+    ops.push({ op: "fill", x: COL_X + 200, y: 14, w: 60, h: 13, dim: 1, over: true });
+    ops.push({ op: "text", x: COL_X + 204, y: 17, s: "DEAD", dim: 0, over: true });
+  }
+  ops.push({ op: "line", x1: COL_X, y1: 40, x2: WIDTH - COL_X, y2: 40, dim: 0.4 });
+
+  // ── the gate: is learning possible right now? ─────────────────────────────
+  let y = 62;
+  ops.push({ op: "text", x: COL_X, y, s: "THE GATE" });
+  y += 14;
+  const verdict = view.binding.learning - view.binding.punishment;
+  const gateScale = Math.max(1, Math.abs(verdict), view.binding.learning, view.binding.punishment) * 1.2;
+  bar(ops, COL_X, y, 150, view.binding.learning, gateScale, `learning ${view.binding.learning.toFixed(2)}`);
+  y += 15;
+  bar(ops, COL_X, y, 150, view.binding.punishment, gateScale, `punish ${view.binding.punishment.toFixed(2)}`);
+  y += 15;
+  bar(ops, COL_X, y, 150, view.binding.plasticity, gateScale, `attend ${view.binding.plasticity.toFixed(2)}`);
+  y += 20;
+  // the verdict, signed, because its SIGN is what decides whether reward or punishment lands
+  ops.push({ op: "text", x: COL_X, y, s: `VERDICT ${verdict >= 0 ? "+" : ""}${verdict.toFixed(2)}` });
+  const vx = COL_X + 110;
+  ops.push({ op: "line", x1: vx + 60, y1: y - 4, x2: vx + 60, y2: y + 10, dim: 0.4 });
+  const vw = Math.max(-58, Math.min(58, (verdict / gateScale) * 58));
+  if (Math.abs(vw) > 0.5) ops.push({ op: "fill", x: vw >= 0 ? vx + 60 : vx + 60 + vw, y: y + 1, w: Math.abs(vw), h: 6, dim: 1 });
+  y += 24;
+  ops.push({ op: "text", x: COL_X, y, s: verdict === 0 ? "gate shut — nothing will consolidate" : "gate open", dim: 0.7 });
+
+  // ── outstanding credit, per action ────────────────────────────────────────
+  y += 26;
+  ops.push({ op: "text", x: COL_X, y, s: "OUTSTANDING CREDIT (what a reward would land on)" });
+  y += 14;
+  const traceMax = Math.max(0.01, ...view.traces.flat().map(Math.abs));
+  view.actions.forEach((action, a) => {
+    const total = (view.traces[a] ?? []).reduce((s, t) => s + Math.abs(t), 0);
+    bar(ops, COL_X, y, 150, total, traceMax * view.senses.length, `${action}  ${total.toFixed(3)}`);
+    y += 15;
+  });
+  y += 8;
+  ops.push({ op: "text", x: COL_X, y, s: "decays at 0.7 per tick — roughly 3 ticks of window", dim: 0.6 });
+
+  // ── what it did ───────────────────────────────────────────────────────────
+  y += 26;
+  ops.push({ op: "text", x: COL_X, y, s: "WHAT IT JUST DID" });
+  y += 14;
+  view.recent.slice(0, 10).forEach((r) => {
+    ops.push({ op: "text", x: COL_X, y, s: `t${r.tick}  ${r.action}${r.succeeded ? "" : " (failed)"}`, dim: r.succeeded ? 0.95 : 0.5 });
+    y += 11;
+  });
+
+  // ── senses and weights, as a grid ─────────────────────────────────────────
+  const gx = 420;
+  let gy = 62;
+  ops.push({ op: "text", x: gx, y: gy, s: "SENSES" });
+  gy += 14;
+  view.senses.forEach((s) => {
+    bar(ops, gx, gy, 90, s.value, 1, `${s.name} ${s.value.toFixed(2)}`);
+    gy += 15;
+  });
+
+  gy += 14;
+  ops.push({ op: "text", x: gx, y: gy, s: "WEIGHTS  (action rows, sense columns)" });
+  gy += 16;
+  const cellW = 62;
+  const cellH = 26;
+  view.senses.forEach((s, i) => {
+    ops.push({ op: "text", x: gx + 70 + i * cellW, y: gy - 8, s: s.name.slice(0, 6), dim: 0.6 });
+  });
+  const wMax = Math.max(0.01, ...view.weights.flat().map(Math.abs));
+  view.actions.forEach((action, a) => {
+    ops.push({ op: "text", x: gx, y: gy + a * cellH + 9, s: action, dim: 0.8 });
+    view.senses.forEach((_, s) => {
+      const cx = gx + 70 + s * cellW;
+      const cy = gy + a * cellH;
+      ops.push({ op: "rect", x: cx, y: cy, w: cellW - 4, h: cellH - 4, dim: 0.25 });
+      // signed magnitude as a bar growing from the cell's midline: sign is the whole point
+      const mid = cy + (cellH - 4) / 2;
+      const w = view.weights[a]?.[s] ?? 0;
+      const h = Math.min((cellH - 6) / 2, (Math.abs(w) / wMax) * ((cellH - 6) / 2));
+      if (h > 0.4) ops.push({ op: "fill", x: cx + 2, y: w >= 0 ? mid - h : mid, w: cellW - 8, h, dim: 0.95 });
+      ops.push({ op: "line", x1: cx + 1, y1: mid, x2: cx + cellW - 5, y2: mid, dim: 0.3 });
+    });
+  });
+  gy += view.actions.length * cellH + 10;
+  ops.push({ op: "text", x: gx, y: gy, s: `up = approach, down = avoid · scale ${wMax.toFixed(2)}`, dim: 0.6 });
+
+  // ── the soup ──────────────────────────────────────────────────────────────
+  const sx = WIDTH - 300;
+  let sy = 62;
+  ops.push({ op: "text", x: sx, y: sy, s: "SOUP" });
+  sy += 14;
+  const entries = Object.entries(view.soup).filter(([, v]) => v > 0.0005).sort((a, b) => b[1] - a[1]);
+  const soupMax = Math.max(0.01, ...entries.map(([, v]) => v));
+  entries.slice(0, 16).forEach(([name, v]) => {
+    bar(ops, sx, sy, 110, v, soupMax, `${name} ${v.toFixed(2)}`);
+    sy += 14;
+  });
+
+  // ── what is in mind ───────────────────────────────────────────────────────
+  sy += 16;
+  ops.push({ op: "text", x: sx, y: sy, s: "IN MIND" });
+  sy += 14;
+  if (view.mind.length === 0) ops.push({ op: "text", x: sx, y: sy, s: "(nothing)", dim: 0.5 });
+  view.mind.slice(0, 10).forEach((w) => {
+    const sign = w.charge > 0 ? "+" : w.charge < 0 ? "-" : " ";
+    ops.push({
+      op: "text", x: sx, y: sy, dim: w.charge === 0 ? 0.55 : 0.95,
+      s: `${sign}${Math.abs(w.charge).toFixed(2)} ${w.token}${w.grounded ? "" : " (hearsay)"}`,
+    });
+    sy += 11;
+  });
+
+  // ── history of the gate, so timing is visible ─────────────────────────────
+  if (history.length > 1) {
+    spark(ops, COL_X, HEIGHT - 60, 300, 34, history, "verdict");
+  }
+  return ops;
+}

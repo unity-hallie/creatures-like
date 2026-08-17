@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1180" />
+<title>creatures-like — trainer</title>
+<script type="importmap">
+  { "imports": { "scher/": "/scher/" } }
+</script>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #101010; color: #b9b9b9; font: 12px ui-monospace, monospace; }
+  main { width: 1180px; margin: 0 auto; padding: 10px 0 24px; }
+  h1 { font: inherit; font-weight: 700; margin: 0 0 8px; letter-spacing: 0.08em; }
+  h1 small { font-weight: 400; color: #6a6a6a; letter-spacing: 0; }
+  figure { margin: 0; }
+  canvas { display: block; width: 1180px; height: 760px; image-rendering: pixelated; }
+  figcaption { padding: 6px 0; color: #6a6a6a; }
+  fieldset { border: 1px solid #2a2a2a; margin: 8px 0; padding: 8px 10px; }
+  legend { color: #8a8a8a; padding: 0 4px; }
+  .row { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  button { background: #1c1c1c; color: #d8d8d8; border: 1px solid #3a3a3a; font: inherit; padding: 4px 10px; cursor: pointer; }
+  button:hover { border-color: #666; }
+  button.warn { border-color: #5a3a3a; }
+  select, input[type="text"] { background: #1c1c1c; color: #b9b9b9; border: 1px solid #333; font: inherit; padding: 3px 5px; }
+  label { color: #8a8a8a; }
+  output { color: #d8d8d8; font-variant-numeric: tabular-nums; }
+  kbd { border: 1px solid #333; padding: 0 3px; color: #8a8a8a; }
+  ol { margin: 4px 0 0; padding-left: 18px; color: #8a8a8a; }
+  p { margin: 0; }
+</style>
+
+<main>
+  <header>
+    <h1>trainer <small>— one creature, a tick at a time</small></h1>
+  </header>
+
+  <figure>
+    <canvas id="frame" width="1180" height="760" role="img"
+      aria-label="The selected creature: its learning gate, outstanding credit, senses, weights, soup and what is in mind."></canvas>
+    <figcaption id="status" aria-live="polite" aria-atomic="true">loading…</figcaption>
+  </figure>
+
+  <form id="controls" aria-label="Training controls">
+    <fieldset>
+      <legend>Creature</legend>
+      <p class="row">
+        <label for="who">Who</label>
+        <select id="who"></select>
+        <label for="tick">Tick</label>
+        <output id="tick" for="who">—</output>
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Time</legend>
+      <p class="row">
+        <button type="button" id="step1">Step 1</button>
+        <button type="button" id="step5">Step 5</button>
+        <button type="button" id="step50">Step 50</button>
+        <button type="button" id="play" aria-pressed="false">Play</button>
+        <span><kbd>Space</kbd> step · <kbd>R</kbd> reward · <kbd>P</kbd> punish</span>
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>The hand</legend>
+      <p class="row">
+        <button type="button" id="reward">Reward</button>
+        <button type="button" id="punish" class="warn">Punish</button>
+        <button type="button" id="feed">Drop food here</button>
+        <label for="token">Say</label>
+        <input type="text" id="token" value="food" size="10" />
+        <button type="button" id="say">Say it</button>
+      </p>
+      <ol id="log" aria-live="polite"></ol>
+    </fieldset>
+  </form>
+</main>
+
+<script type="module" src="/viewer/trainer-page.js"></script>

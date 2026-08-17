@@ -26,6 +26,9 @@ export interface OrganismOptions {
 }
 
 export class Organism {
+  /** A name to address it by. Anonymous array members cannot be trained: you have to be
+   *  able to say WHICH creature, and have that survive a birth, a death and a migration. */
+  id = "";
   /** kept, not just expressed: a parent has to be able to hand it on */
   genome: Genome;
   expressed: Expressed;
@@ -102,7 +105,6 @@ export class Organism {
     this.secrete();
     this.react();
     this.decay();
-    this.age++;
   }
 
   /** The glands: each watches one concentration and secretes another. */
@@ -123,6 +125,11 @@ export class Organism {
    *  consolidates its learning between react() and decay() for exactly that reason. */
   decay(): void {
     for (const gene of this.expressed.decays) this.soup.set(gene.chem, this.soup.get(gene.chem) * gene.halfLife);
+    // Age advances HERE rather than in metabolise(), because decay is the one phase every
+    // caller runs last. The animal path calls the phases individually so it can consolidate
+    // between react() and decay() — and it therefore never called metabolise(), so every
+    // grazer in the world was permanently age 0. The trainer view showed it: tick 43, age 0.
+    this.age++;
   }
 
   /** Being moved by what is in mind.

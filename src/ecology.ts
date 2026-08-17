@@ -14,7 +14,7 @@
 import { Soup, transfer, type ChemId } from "./chemistry.js";
 import { applyReaction } from "./stoichiometry.js";
 import { Dice } from "./dice.js";
-import { CARBON, CHEMS, NITROGEN, SUBSTRATE_LOCKS, competenceOf, mutate, recombine, shed, type Genome, type Packet } from "./genome.js";
+import { CARBON, CHEMS, NITROGEN, SUBSTRATE_LOCKS, competenceOf, mutate, recombine, shed, type Action, type Genome, type Packet } from "./genome.js";
 import { FUNGUS, PLANT } from "./flora.js";
 import { Organism } from "./organism.js";
 import { bind, Lobe } from "./brain.js";
@@ -65,6 +65,21 @@ export interface EcosystemOptions {
   name?: string;
 }
 
+/** Something done to the world from outside it.
+ *
+ *  Logged, always, and at a named port like any die. A creature's life stays
+ *  `(genome, seeds, interventions)` — so a creature you trained can be replayed exactly,
+ *  and "was it my training or the weather?" stays an experiment rather than a story. */
+export interface Intervention {
+  tick: number;
+  /** who or where it landed */
+  target: string;
+  kind: "reward" | "punish" | "say" | "feed";
+  amount: number;
+  /** for `say`: the token uttered. Nothing else uses it. */
+  token?: string;
+}
+
 export class Patch {
   readonly soup = new Soup();
   /** genetic material shed here and not yet taken up or perished. The naked DNA of
@@ -84,6 +99,9 @@ interface Resident {
 interface Grazer extends Resident {
   lobe: Lobe;
   meals: number;
+  /** the last few things it did, most recent first. Reward lands on what fired RECENTLY,
+   *  so a trainer has to be able to see what that was. */
+  recent?: Array<{ tick: number; action: Action; succeeded: boolean }>;
 }
 
 /** Starch in a patch above this reads as food to a grazer. */
@@ -141,6 +159,9 @@ export class Ecosystem {
   ignitions = 0;
   deaths = 0;
   births = 0;
+  /** the hand's whole record. Nothing here is applied twice or forgotten. */
+  readonly interventions: Intervention[] = [];
+  #nextId = 0;
   recombinations = 0;
   meals = 0;
 
@@ -189,6 +210,7 @@ export class Ecosystem {
           [CHEMS.adp, 12],
         ],
       });
+      organism.id = this.#name("grazer");
       this.grazers.push({
         organism,
         lobe: new Lobe(organism.expressed, this.dice.at("spawn")),
@@ -209,6 +231,50 @@ export class Ecosystem {
         at: Math.floor(spawn.next() * width),
       });
     }
+  }
+
+  /** Names a newborn. Deterministic and per-world, so a replay assigns the same names. */
+  #name(kind: string): string {
+    return `${kind}${this.#nextId++}`;
+  }
+
+  /** Everything alive here, addressable. */
+  residents(): Resident[] {
+    return [...this.plants, ...this.fungi, ...this.grazers];
+  }
+
+  find(id: string): Resident | undefined {
+    return this.residents().find((r) => r.organism.id === id);
+  }
+
+  /**
+   * THE HAND. Reward, punish, speak, feed — from outside the world, onto one target.
+   *
+   * Reward and punishment secrete rather than rewire: dopamine and cortisol go into the
+   * soup, and the ordinary receptors do the ordinary work on whatever fired recently. So
+   * TIMING IS THE WHOLE SKILL. `traceDecay` is 0.7, which leaves about three or four ticks
+   * of credit — reward arriving late trains something else, exactly as with an animal.
+   */
+  intervene(target: string, kind: Intervention["kind"], amount = 1, token?: string): boolean {
+    const record: Intervention = { tick: this.tick, target, kind, amount, token };
+
+    if (kind === "feed") {
+      const at = Number(target);
+      const patch = this.patches[at];
+      if (!patch) return false;
+      patch.soup.add(CHEMS.starch, amount);
+      this.interventions.push(record);
+      return true;
+    }
+
+    const resident = this.find(target);
+    if (!resident || !resident.organism.alive) return false;
+    if (kind === "reward") resident.organism.soup.add(CHEMS.dopamine, amount);
+    if (kind === "punish") resident.organism.soup.add(CHEMS.cortisol, amount);
+    // `say` is handled by the caller that owns the idiolects; logged here regardless so the
+    // record of what was done to this world stays in one place
+    this.interventions.push(record);
+    return true;
   }
 
   /** Every carbon atom in the world, wherever it currently sits. The number this returns
@@ -275,20 +341,26 @@ export class Ecosystem {
   /** What a grazer can see: fruit to either side, fruit underfoot, and its own fuel
    *  state. Identical in shape to the single-creature rig, but the food is real — a
    *  patch has starch because a plant put it there out of air and light. */
-  #forage(grazer: Grazer): void {
+  /** What a grazer can see right now. Exposed because the training view has to show the
+   *  same numbers the lobe is actually reading — a second implementation would drift. */
+  senseOf(grazer: Grazer): number[] {
     const patch = this.patches[grazer.at];
     let nearest: number | null = null;
     for (let i = 0; i < this.patches.length; i++) {
       if (this.patches[i].soup.get(CHEMS.starch) < FORAGE_THRESHOLD) continue;
       if (nearest === null || Math.abs(i - grazer.at) < Math.abs(nearest - grazer.at)) nearest = i;
     }
-
-    const sensed = [
+    return [
       nearest !== null && nearest < grazer.at ? 1 : 0,
       nearest !== null && nearest > grazer.at ? 1 : 0,
       patch.soup.get(CHEMS.starch) >= FORAGE_THRESHOLD ? 1 : 0,
       Math.max(0, 1 - grazer.organism.soup.get(CHEMS.glucose) / 0.6),
     ];
+  }
+
+  #forage(grazer: Grazer): void {
+    const patch = this.patches[grazer.at];
+    const sensed = this.senseOf(grazer);
 
     const picked = grazer.lobe.choose(sensed, bind(grazer.organism.expressed, grazer.organism.soup), this.dice.at("tiebreak"));
     const action = grazer.lobe.actions[picked];
@@ -328,6 +400,11 @@ export class Ecosystem {
       }
     }
 
+    // remember it, shortest useful history: the credit window is about three ticks
+    if (!grazer.recent) grazer.recent = [];
+    grazer.recent.unshift({ tick: this.tick, action, succeeded });
+    if (grazer.recent.length > 12) grazer.recent.pop();
+
     for (const gene of grazer.organism.expressed.emittersOf(action)) {
       if (gene.when === "success" && !succeeded) continue;
       if (gene.when === "failure" && succeeded) continue;
@@ -362,6 +439,7 @@ export class Ecosystem {
     const child = new Organism({ genome: mutate(parent.genome, stream, 0.08) });
     for (const [id] of parent.matter()) transfer(parent.soup, child.soup, id, parent.soup.get(id) * DOWRY);
     for (const id of [CHEMS.atp, CHEMS.adp]) transfer(parent.soup, child.soup, id, parent.soup.get(id) * DOWRY);
+    child.id = this.#name("born");
     cohort.push({ organism: child, at: resident.at });
     this.births++;
   }

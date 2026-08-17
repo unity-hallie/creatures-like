@@ -16,6 +16,15 @@ import { join, resolve, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import ts from "typescript";
+import { TrainingWorld } from "./trainer.js";
+
+/** The live training world, made on first use.
+ *
+ *  Lazily, because most sessions only ever scrub finished runs and a live ecosystem should
+ *  not be ticking in the background for them. There is exactly one, deliberately: two
+ *  trainers on one world would each be training something the other was changing. */
+let pen: TrainingWorld | null = null;
+const trainingWorld = (): TrainingWorld => (pen ??= new TrainingWorld());
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VIEWER = existsSync(join(HERE, "scene.ts")) ? HERE : resolve(HERE, "../../viewer");
@@ -97,6 +106,40 @@ export function createViewerServer(): Server {
     if (path === "/" || path === "/index.html") {
       return send(req, res, "text/html; charset=utf-8", readFileSync(join(VIEWER, "index.html"), "utf8"));
     }
+    // ── the trainer: a live world, stepped on request ────────────────────────
+    if (path === "/trainer" || path === "/trainer.html") {
+      return send(req, res, "text/html; charset=utf-8", readFileSync(join(VIEWER, "trainer.html"), "utf8"));
+    }
+    if (path === "/api/train/state") {
+      const world = trainingWorld();
+      const id = url.searchParams.get("id") ?? world.ids()[0] ?? "";
+      return send(req, res, "application/json", JSON.stringify({
+        ids: world.ids(),
+        id,
+        view: world.view(id),
+        verdicts: world.verdicts.get(id) ?? [],
+        interventions: world.eco.interventions.slice(-12).reverse(),
+      }));
+    }
+    if (path === "/api/train/step") {
+      const world = trainingWorld();
+      world.step(Math.max(1, Math.min(500, Number(url.searchParams.get("n") ?? 1))));
+      return send(req, res, "application/json", JSON.stringify({ tick: world.eco.tick }));
+    }
+    if (path === "/api/train/act") {
+      const world = trainingWorld();
+      const kind = url.searchParams.get("kind") ?? "";
+      const target = url.searchParams.get("target") ?? "";
+      const amount = Number(url.searchParams.get("amount") ?? 1);
+      const ok =
+        kind === "say"
+          ? world.say(target, url.searchParams.get("token") ?? "word")
+          : kind === "reward" || kind === "punish" || kind === "feed"
+            ? world.hand(kind, target, amount)
+            : false;
+      return send(req, res, "application/json", JSON.stringify({ ok, tick: world.eco.tick }));
+    }
+
     if (path === "/api/runs") {
       return send(req, res, "application/json", JSON.stringify(runs()));
     }
