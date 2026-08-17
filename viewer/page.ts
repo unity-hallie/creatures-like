@@ -23,7 +23,13 @@ type View = "dash" | "map" | "zoom";
 const canvasEl = document.getElementById("frame") as HTMLCanvasElement;
 const scrub = document.getElementById("scrub") as HTMLInputElement;
 const statusEl = document.getElementById("status") as HTMLElement;
-const viewSel = document.getElementById("view") as HTMLSelectElement;
+// A radio group rather than a select: three mutually exclusive views, arrow-key
+// reachable without opening anything, and the markup states the exclusivity instead of
+// implying it.
+const viewRadios = Array.prototype.slice.call(
+  document.querySelectorAll('input[name="view"]'),
+) as HTMLInputElement[];
+const tickOut = document.getElementById("tick") as HTMLOutputElement;
 const runSel = document.getElementById("run") as HTMLSelectElement;
 
 canvasEl.width = WIDTH;
@@ -64,11 +70,14 @@ function chrome(): void {
   const all = frames.get();
   scrub.max = String(Math.max(0, all.length - 1));
   scrub.value = String(index.get());
-  viewSel.value = view.get();
+  for (const radio of viewRadios) radio.checked = radio.value === view.get();
   const frame = all[index.get()];
+  // the caption says which moment of which world this is; the output carries the tick on
+  // its own, because that is the number anyone actually quotes
+  tickOut.textContent = frame ? String(frame.tick) : "—";
   statusEl.textContent = frame
-    ? `frame ${index.get() + 1} / ${all.length}   tick ${frame.tick}` +
-      (view.get() === "zoom" ? `   place ${place.get()} ${frame.places[place.get()]?.name ?? ""}` : "")
+    ? `frame ${index.get() + 1} of ${all.length}` +
+      (view.get() === "zoom" ? ` · place ${place.get()} ${frame.places[place.get()]?.name ?? ""}` : "")
     : "no frames";
 }
 
@@ -144,7 +153,7 @@ function readHash(): void {
 }
 
 scrub.addEventListener("input", () => index.set(Number(scrub.value)));
-viewSel.addEventListener("change", () => view.set(viewSel.value as View));
+for (const radio of viewRadios) radio.addEventListener("change", () => view.set(radio.value as View));
 runSel.addEventListener("change", () => void openRun(runSel.value));
 
 addEventListener("keydown", (e) => {

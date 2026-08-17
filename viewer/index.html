@@ -1,5 +1,6 @@
 <!doctype html>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=1180" />
 <title>creatures-like — run viewer</title>
 <!-- scher is consumed from source, same as everywhere else in this repo; the server
      transpiles it on request, so there is still no build step. See vitest.config.ts. -->
@@ -7,28 +8,94 @@
   { "imports": { "scher/": "/scher/" } }
 </script>
 <style>
+  :root { color-scheme: dark; }
   body { margin: 0; background: #101010; color: #b9b9b9; font: 12px ui-monospace, monospace; }
   main { width: 1180px; margin: 0 auto; padding: 10px 0 24px; }
+
+  /* The canvas is the thing; everything around it is markup that says what it is. */
+  figure { margin: 0; }
   /* 1:1, never scaled. A wireframe this thin does not survive resampling, and a viewer
      that quietly resamples is showing you a different picture than the PNG does. */
   canvas { display: block; width: 1180px; height: 760px; image-rendering: pixelated; cursor: crosshair; }
-  #scrub { width: 100%; margin: 10px 0 6px; display: block; }
-  #bar { display: flex; gap: 14px; align-items: baseline; }
+  figcaption { padding: 6px 0 0; color: #6a6a6a; }
+
+  h1 { font: inherit; font-weight: 700; margin: 0 0 6px; letter-spacing: 0.08em; }
+  h1 small { font-weight: 400; color: #6a6a6a; letter-spacing: 0; }
+
+  form { display: contents; }
+  fieldset { border: 0; margin: 0; padding: 0; display: flex; gap: 10px; align-items: baseline; }
+  legend { float: left; margin-right: 10px; color: #6a6a6a; }
+  label { color: #8a8a8a; }
   select { background: #1c1c1c; color: #b9b9b9; border: 1px solid #333; font: inherit; padding: 2px 4px; }
-  #hint { color: #6a6a6a; margin-left: auto; }
+  input[type="range"] { width: 100%; margin: 10px 0 8px; display: block; }
+  output { color: #d8d8d8; font-variant-numeric: tabular-nums; }
+
+  .controls { display: flex; gap: 20px; align-items: baseline; flex-wrap: wrap; }
+  .controls p { margin: 0; }
+  .radios { display: flex; gap: 8px; }
+  .radios label { display: inline-flex; gap: 3px; align-items: baseline; }
+  [aria-live] { color: #d8d8d8; }
+  kbd { border: 1px solid #333; padding: 0 3px; color: #8a8a8a; }
 </style>
+
 <main>
-  <canvas id="frame"></canvas>
-  <input id="scrub" type="range" min="0" max="0" value="0" step="1" />
-  <div id="bar">
-    <select id="run"></select>
-    <select id="view">
-      <option value="map">map</option>
-      <option value="dash">dash</option>
-      <option value="zoom">zoom</option>
-    </select>
-    <span id="status">loading…</span>
-    <span id="hint">← → to step · click a place on the map to zoom it · click again to go back</span>
-  </div>
+  <header>
+    <h1>creatures-like <small>— run viewer</small></h1>
+  </header>
+
+  <!-- The visualisation. A figure, because it is one: a picture plus the caption that
+       says which moment of which world it is. -->
+  <figure>
+    <canvas
+      id="frame"
+      width="1180"
+      height="760"
+      role="img"
+      aria-label="Wireframe render of one simulation frame. Use the frame slider below to move through time."
+    ></canvas>
+    <figcaption id="status" aria-live="polite" aria-atomic="true">loading…</figcaption>
+  </figure>
+
+  <form id="controls" aria-label="Frame and view controls">
+    <label for="scrub">Frame</label>
+    <input
+      id="scrub"
+      type="range"
+      min="0"
+      max="0"
+      value="0"
+      step="1"
+      list="ticks"
+      aria-describedby="keys"
+    />
+
+    <div class="controls">
+      <p>
+        <label for="run">Run</label>
+        <select id="run"></select>
+      </p>
+
+      <!-- Three mutually exclusive views: a radio group says that, where a select only
+           implies it — and it is reachable with arrow keys without opening anything. -->
+      <fieldset>
+        <legend>View</legend>
+        <div class="radios">
+          <label><input type="radio" name="view" value="map" checked /> map</label>
+          <label><input type="radio" name="view" value="dash" /> dash</label>
+          <label><input type="radio" name="view" value="zoom" /> zoom</label>
+        </div>
+      </fieldset>
+
+      <p>
+        <label for="tick">Tick</label>
+        <output id="tick" for="scrub">—</output>
+      </p>
+
+      <p id="keys">
+        <kbd>Left</kbd> <kbd>Right</kbd> step · click a place on the map to zoom it · click again to go back
+      </p>
+    </div>
+  </form>
 </main>
+
 <script type="module" src="/viewer/page.js"></script>
