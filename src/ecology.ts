@@ -108,6 +108,18 @@ interface Grazer extends Resident {
 const FORAGE_THRESHOLD = 0.05;
 /** Share of a patch's starch taken in one mouthful. */
 const BITE = 0.5;
+/** How much undigested food a gut holds. A stomach has volume.
+ *
+ *  Added because the trainer showed a creature eating 42 times in 43 ticks: all its
+ *  outstanding credit sat on EAT and the movement actions had none, so there was nothing
+ *  to shape. Eating that always works is not a generous world, it is a world with no
+ *  choices in it.
+ *
+ *  A capacity rather than a cooldown, because a cooldown is a number I would be choosing
+ *  and a capacity is a fact about a body — a creature that has just gorged cannot swallow,
+ *  and one that digested it can. Satiety already existed as a FEELING (serotonin damping
+ *  drive); this is satiety as a LIMIT, and the two are different things. */
+const GUT_CAPACITY = 1.4;
 
 /** Sunlight delivered per patch per tick. Crosses the boundary from outside the model,
  *  like food and unlike everything else — see the file header. */
@@ -373,7 +385,19 @@ export class Ecosystem {
       grazer.at++;
       succeeded = true;
     } else if (action === "eat") {
-      let taken = transfer(patch.soup, grazer.organism.soup, CHEMS.starch, patch.soup.get(CHEMS.starch) * BITE);
+      // a full gut refuses the mouthful, and the refusal is a real failure: the emitters
+      // fire their failure branch, adrenaline rises, and consolidation reads it
+      // PERCEPTION AND ACTION HAVE TO AGREE. `senseOf` reports no food when a patch holds
+      // less than FORAGE_THRESHOLD, but this branch used to take whatever was there — so a
+      // creature nibbling 0.001 off a patch its own senses called empty registered a
+      // successful meal, 119 times in 120 ticks. The gut capacity below never bound because
+      // the mouthfuls were minuscule. A world where the wrong action always works has no
+      // choices in it, and nothing to train.
+      const worthEating =
+        patch.soup.get(CHEMS.starch) >= FORAGE_THRESHOLD && grazer.organism.soup.get(CHEMS.starch) < GUT_CAPACITY;
+      let taken = worthEating
+        ? transfer(patch.soup, grazer.organism.soup, CHEMS.starch, patch.soup.get(CHEMS.starch) * BITE)
+        : 0;
       // a mouthful takes the surrounding structure too — which no vertebrate can open,
       // so without a gut symbiont it comes out the other end for a fungus to deal with
       taken += transfer(patch.soup, grazer.organism.soup, CHEMS.cellulose, taken * 0.4);

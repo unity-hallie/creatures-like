@@ -38,8 +38,13 @@ export class TrainingWorld {
       seed,
       name: "pen",
       width: 12,
-      plants: 10,
-      fungi: 8,
+      // A POOR pen, deliberately. Ten plants across twelve patches restocked the ground
+      // faster than one grazer could strip it, so eating succeeded 199 times in 200 ticks
+      // and every scrap of credit sat on EAT. Scarcity is what makes a choice a choice, and
+      // this is scenario design rather than tuning physics — the pen is a room I built, not
+      // a law I bent.
+      plants: 3,
+      fungi: 6,
       grazers: 4,
       plantGenome: GRASS,
       fungusGenome: SAPROPHYTE,
