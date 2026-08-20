@@ -1,7 +1,7 @@
 // Render a checkpoint to a PNG. The surface this project is looked at through.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { scene, sceneMap, sceneZoom, historyIndices, WIDTH, HEIGHT, type Frame } from "./scene.js";
+import { scene, sceneMap, sceneZoom, historyIndices, dashWidth, WIDTH, HEIGHT, type Frame } from "./scene.js";
 import { Canvas, rasterise } from "./raster.js";
 import { png } from "./png.js";
 
@@ -36,7 +36,8 @@ for (const i of picked) {
   const zoomAt = Number(args.get("place") ?? 0);
   const ops =
     view === "map" ? sceneMap(frame, history) : view === "zoom" ? sceneZoom(frame, zoomAt, history) : scene(frame, history);
-  const canvas = new Canvas(WIDTH, HEIGHT);
+  // the dashboard grows with the world; every other view is a fixed composition
+  const canvas = new Canvas(view === "dash" ? dashWidth(frame) : WIDTH, HEIGHT);
   rasterise(canvas, ops);
   const tag = view === "zoom" ? `zoom${zoomAt}` : view;
   const file = join(out, `${tag}-f${String(i).padStart(5, "0")}-t${frame.tick}.png`);

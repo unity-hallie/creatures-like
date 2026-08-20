@@ -46,6 +46,8 @@ export const HEIGHT = 760;
 const COL_X = 30;
 const COL_W = 178;
 const COL_GAP = 12;
+/** Horizontal room one route's wind bar needs along the bottom rail. */
+const ROUTE_W = 190;
 const TOP = 96;
 
 /** A labelled bar. Length is the quantity; the tick marks say what full scale means. */
@@ -90,8 +92,26 @@ export function historyIndices(upto: number, budget = 60): number[] {
   return out;
 }
 
+/** How wide the dashboard has to be to show the whole world.
+ *
+ *  The dashboard lays out one column per place, and WIDTH was a constant chosen when a
+ *  world had six of them. Cranking the world to twelve did not widen it, so the render
+ *  quietly cut off after six and a half columns — five whole places, and half the routes,
+ *  simply absent from the surface I check the simulation on. Nothing looked broken, which
+ *  is the problem: a view that drops half the world without saying so is worse than one
+ *  that fails, because it invites confident conclusions about a world you cannot see.
+ *
+ *  So the surface is a function of its content now, and a wider world makes a wider image.
+ *  WIDTH stays the floor, so the map, zoom and creature views are untouched. */
+export function dashWidth(frame: Frame): number {
+  const columns = 2 * COL_X + frame.places.length * (COL_W + COL_GAP) - COL_GAP;
+  const routes = 2 * COL_X + frame.routes.length * ROUTE_W;
+  return Math.max(WIDTH, columns, routes);
+}
+
 export function scene(frame: Frame, history: Frame[] = []): Op[] {
   const ops: Op[] = [];
+  const width = dashWidth(frame);
 
   // ── header ────────────────────────────────────────────────────────────────
   ops.push({ op: "text", x: COL_X, y: 22, s: `TICK ${frame.tick}` });
@@ -111,7 +131,7 @@ export function scene(frame: Frame, history: Frame[] = []): Op[] {
   });
 
   // the year as a dial, so the season reads at a glance rather than as a decimal
-  const dialX = WIDTH - 70;
+  const dialX = width - 70;
   const dialY = 34;
   const r = 22;
   for (let i = 0; i < 24; i++) {
@@ -128,7 +148,7 @@ export function scene(frame: Frame, history: Frame[] = []): Op[] {
   const ya = frame.yearPhase * Math.PI * 2 - Math.PI / 2;
   ops.push({ op: "line", x1: dialX, y1: dialY, x2: dialX + Math.cos(ya) * r, y2: dialY + Math.sin(ya) * r, w: 2 });
 
-  ops.push({ op: "line", x1: COL_X, y1: 40, x2: WIDTH - COL_X, y2: 40, dim: 0.4 });
+  ops.push({ op: "line", x1: COL_X, y1: 40, x2: width - COL_X, y2: 40, dim: 0.4 });
 
   // scales derived from the frame, so nothing clips and nothing is a sliver
   const pressureScale = Math.max(1, ...frame.places.map((p) => p.pressure)) * 1.15;
@@ -247,10 +267,10 @@ export function scene(frame: Frame, history: Frame[] = []): Op[] {
 
   // ── routes along the bottom: wind as a signed bar ──────────────────────────
   const ry = HEIGHT - 42;
-  ops.push({ op: "line", x1: COL_X, y1: ry - 22, x2: WIDTH - COL_X, y2: ry - 22, dim: 0.4 });
+  ops.push({ op: "line", x1: COL_X, y1: ry - 22, x2: width - COL_X, y2: ry - 22, dim: 0.4 });
   ops.push({ op: "text", x: COL_X, y: ry - 16, s: "WIND (pressure gradient along each route)", dim: 0.7 });
   frame.routes.forEach((route, i) => {
-    const x = COL_X + i * 190;
+    const x = COL_X + i * ROUTE_W;
     const mid = x + 60;
     ops.push({ op: "text", x, y: ry + 2, s: `${route.from}>${route.to}`, dim: 0.7 });
     ops.push({ op: "line", x1: mid, y1: ry - 4, x2: mid, y2: ry + 12, dim: 0.4 });

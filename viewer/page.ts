@@ -15,7 +15,7 @@
 // wrong for.
 
 import { cell, derive, batch } from "scher/cell.js";
-import { scene, sceneMap, sceneZoom, historyIndices, mapPlaceAt, WIDTH, HEIGHT, type Frame } from "./scene.js";
+import { scene, sceneMap, sceneZoom, historyIndices, mapPlaceAt, dashWidth, WIDTH, HEIGHT, type Frame } from "./scene.js";
 import { Canvas, rasterise, rgba } from "./raster.js";
 
 type View = "dash" | "map" | "zoom";
@@ -61,9 +61,13 @@ function paint(): void {
     v === "map" ? sceneMap(frame, past)
     : v === "zoom" ? sceneZoom(frame, place.get(), past)
     : scene(frame, past);
-  const buffer = new Canvas(WIDTH, HEIGHT);
+  // the dashboard grows with the world, so the canvas is resized to match rather than
+  // cropping places off the right edge. Every other view is a fixed composition.
+  const w = v === "dash" ? dashWidth(frame) : WIDTH;
+  if (canvasEl.width !== w) canvasEl.width = w;
+  const buffer = new Canvas(w, HEIGHT);
   rasterise(buffer, ops);
-  ctx.putImageData(new ImageData(rgba(buffer), WIDTH, HEIGHT), 0, 0);
+  ctx.putImageData(new ImageData(rgba(buffer), w, HEIGHT), 0, 0);
 }
 
 function chrome(): void {

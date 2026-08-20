@@ -25,7 +25,7 @@ import { pathToFileURL } from "node:url";
 import type { AddressInfo } from "node:net";
 import ts from "typescript";
 
-import { scene, sceneMap, sceneZoom, historyIndices, WIDTH, HEIGHT, type Frame, type Op } from "../viewer/scene.js";
+import { scene, sceneMap, sceneZoom, historyIndices, dashWidth, WIDTH, HEIGHT, type Frame, type Op } from "../viewer/scene.js";
 import { Canvas, rasterise, rgba } from "../viewer/raster.js";
 import { png } from "../viewer/png.js";
 import { createViewerServer } from "../viewer/serve.js";
@@ -260,4 +260,31 @@ test("the history window stays bounded as a run grows", () => {
     expect(indices).toEqual([...indices].sort((a, b) => a - b));
   }
   expect(historyIndices(0)).toEqual([]);
+});
+
+test("the dashboard shows every place, however many there are", () => {
+  // WIDTH was chosen when a world had six places. Cranking it to twelve did not widen the
+  // canvas, so `scene` kept drawing all twelve columns and the rasteriser silently dropped
+  // everything past 1180px: five whole places and half the routes absent from the surface
+  // this project is checked on, with nothing about the image saying so.
+  //
+  // Asserted against the ops rather than the pixels, because the failure was that ops fell
+  // outside the canvas — checking the picture would have compared two equally truncated
+  // pictures and passed.
+  const wide: Frame = {
+    ...FRAME,
+    places: Array.from({ length: 12 }, (_, i) => place(`place${i}`, i % 3, { plants: 3, fungi: 2, grazers: 1 })),
+    routes: Array.from({ length: 12 }, (_, i) => ({ from: i, to: (i + 1) % 12, gradient: 1 - i / 6 })),
+  };
+
+  const width = dashWidth(wide);
+  expect(width).toBeGreaterThan(WIDTH);
+
+  for (const op of scene(wide, [])) {
+    const xs = op.op === "line" ? [op.x1, op.x2] : op.op === "text" ? [op.x + op.s.length * 4] : [op.x + op.w];
+    for (const x of xs) expect(x).toBeLessThanOrEqual(width);
+  }
+
+  // and a world small enough to fit keeps the composition it was designed with
+  expect(dashWidth(FRAME)).toBe(WIDTH);
 });
