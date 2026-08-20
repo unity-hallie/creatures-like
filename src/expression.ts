@@ -13,9 +13,11 @@
 // The other payoff is that gene kinds become extensible from data: adding one means
 // adding a bucket here, not another branch in five methods.
 
-import type { Soup } from "./chemistry.js";
+import type { ChemId, Soup } from "./chemistry.js";
+import { accessibility } from "./digestion.js";
 import type { Reaction } from "./stoichiometry.js";
 import {
+  LOCK_OF,
   reactionsOf,
   type Action,
   type DecayGene,
@@ -50,6 +52,13 @@ export interface Expressed {
   horizon: number;
   /** every reaction in the genome, including action costs — for birth-time checks */
   allReactions: readonly Reaction[];
+  /** every species any reaction consumes. What the organism draws from its surroundings is
+   *  a fact about its GENOME, so it is settled here — the tick used to rebuild this Set
+   *  from scratch for every organism, which the profiler put at 16% of all runtime. */
+  reactantSpecies: ReadonlySet<ChemId>;
+  /** how much of each locked substrate this genome can open. Also a genome fact, also
+   *  recomputed per organism per tick before this. */
+  accessBySubstrate: ReadonlyMap<ChemId, number>;
   costsOf(action: Action): readonly Reaction[];
   emittersOf(action: Action): readonly EmitterGene[];
   receptorsOf(target: ReceptorTarget): readonly ReceptorGene[];
@@ -84,16 +93,32 @@ export function express(genome: Genome): Expressed {
     (g) => g.target,
   );
 
+  const allReactions = reactionsOf(genome);
+  const reactants = new Set<ChemId>();
+  for (const reaction of allReactions) for (const t of reaction.reactants) reactants.add(t.chem);
+
+  const enzymes = genome.filter((g): g is EnzymeGene => g.kind === "enzyme");
+  const access = new Map<ChemId, number>();
+  for (const enzyme of enzymes) {
+    const substrate = enzyme.reaction.reactants[0]?.chem;
+    if (!substrate) continue;
+    const lock = LOCK_OF.get(substrate);
+    if (!lock) continue;
+    access.set(substrate, Math.max(access.get(substrate) ?? 0, accessibility(lock, enzyme.keys)));
+  }
+
   return {
     lobe,
     decays: genome.filter((g): g is DecayGene => g.kind === "decay"),
     reactions: genome.filter((g) => g.kind === "reaction").map((g) => g.reaction),
-    enzymes: genome.filter((g): g is EnzymeGene => g.kind === "enzyme"),
+    enzymes,
     endocrine: genome.filter((g): g is EndocrineGene => g.kind === "endocrine"),
     psyche: genome.filter((g): g is PsycheGene => g.kind === "psyche"),
     vocabulary: genome.filter((g): g is VocabularyGene => g.kind === "vocabulary").map((g) => g.token),
     horizon: genome.find((g): g is ResolutionGene => g.kind === "resolution")?.horizon ?? 6,
-    allReactions: reactionsOf(genome),
+    allReactions: allReactions,
+    reactantSpecies: reactants,
+    accessBySubstrate: access,
     costsOf: (action) => costs.get(action)?.map((g) => g.reaction) ?? NONE,
     emittersOf: (action) => emitters.get(action) ?? NONE,
     receptorsOf: (target) => receptors.get(target) ?? NONE,

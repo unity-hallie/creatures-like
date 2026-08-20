@@ -57,14 +57,10 @@ export class Organism {
   /** How much of a substrate this genome's best enzyme can actually open. Zero means the
    *  energy sits there unreachable — and whatever the organism took up gets egested. */
   accessTo(substrate: ChemId): number {
-    const lock = LOCK_OF.get(substrate);
-    if (!lock) return 1; // no lock: already open, e.g. glucose
-    let best = 0;
-    for (const enzyme of this.expressed.enzymes) {
-      if (enzyme.reaction.reactants[0]?.chem !== substrate) continue;
-      best = Math.max(best, accessibility(lock, enzyme.keys));
-    }
-    return best;
+    if (!LOCK_OF.has(substrate)) return 1; // no lock: already open, e.g. glucose
+    // settled at expression time — see expression.ts. This used to loop every enzyme on
+    // every call, and #egest calls it per substrate per organism per tick.
+    return this.expressed.accessBySubstrate.get(substrate) ?? 0;
   }
 
   /** Digestion: spend ATP to open what the keys fit.

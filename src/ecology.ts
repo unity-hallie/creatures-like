@@ -325,10 +325,7 @@ export class Ecosystem {
 
   /** What this organism's own genes say it consumes from outside itself. */
   #uptakeFor(resident: Resident): void {
-    const wanted = new Set<ChemId>();
-    for (const reaction of resident.organism.expressed.allReactions) {
-      for (const t of reaction.reactants) wanted.add(t.chem);
-    }
+    const wanted = resident.organism.expressed.reactantSpecies;
     const patch = this.patches[resident.at];
     for (const [id, where] of ENVIRONMENT) {
       if (!wanted.has(id)) continue;
