@@ -31,30 +31,57 @@ mkdirSync(OUT, { recursive: true });
 /** A world with variety in it: different producers, different decomposers, different
  *  latitudes, different sized skies. Uniform worlds have nothing to say. */
 function buildWorld(): Geography {
-  const places = [
-    new Ecosystem({ seed: SEED + 1, name: "boreal", latitude: 0.95, plantGenome: TREE, fungusGenome: SAPROPHYTE,
-      plants: 16, fungi: 26, grazers: 8, width: 24, volume: 90, soilAmmonia: 0.6 }),
-    new Ecosystem({ seed: SEED + 2, name: "taiga", latitude: 0.6, plantGenome: TREE, fungusGenome: COMPLETE_ROTTER,
-      plants: 16, fungi: 28, grazers: 8, width: 24, volume: 100, soilAmmonia: 0.5 }),
-    new Ecosystem({ seed: SEED + 3, name: "steppe", latitude: 0.2, plantGenome: GRASS, fungusGenome: SAPROPHYTE,
-      plants: 18, fungi: 30, grazers: 12, width: 24, volume: 130, soilAmmonia: 0.3 }),
-    new Ecosystem({ seed: SEED + 4, name: "savanna", latitude: -0.2, plantGenome: GRASS, fungusGenome: COMPLETE_ROTTER,
-      plants: 18, fungi: 30, grazers: 12, width: 24, volume: 130, soilAmmonia: 0.25 }),
-    new Ecosystem({ seed: SEED + 5, name: "wetland", latitude: -0.6, plantGenome: MOSS, fungusGenome: SAPROPHYTE,
-      plants: 18, fungi: 30, grazers: 6, width: 24, volume: 110, soilAmmonia: 0.8 }),
-    new Ecosystem({ seed: SEED + 6, name: "scrub", latitude: -0.95, plantGenome: LEGUME, fungusGenome: COMPLETE_ROTTER,
-      plants: 14, fungi: 26, grazers: 8, width: 24, volume: 95, soilAmmonia: 0.05 }),
+  // TWELVE places, generated rather than hand-written. The profile says a tick costs about
+  // 0.76ms for the old six-place world, against a 250ms budget at 4 Hz — roughly 325x more
+  // headroom than realtime needs. That headroom is not for the game, which nobody is
+  // watching live; it is for running experiments faster. So spend it on WORLD, not speed.
+  const RECIPES = [
+    { name: "boreal", plant: TREE, rot: SAPROPHYTE, ammonia: 0.6 },
+    { name: "taiga", plant: TREE, rot: COMPLETE_ROTTER, ammonia: 0.5 },
+    { name: "upland", plant: MOSS, rot: SAPROPHYTE, ammonia: 0.9 },
+    { name: "steppe", plant: GRASS, rot: SAPROPHYTE, ammonia: 0.3 },
+    { name: "prairie", plant: GRASS, rot: COMPLETE_ROTTER, ammonia: 0.35 },
+    { name: "forest", plant: TREE, rot: COMPLETE_ROTTER, ammonia: 0.55 },
+    { name: "savanna", plant: GRASS, rot: COMPLETE_ROTTER, ammonia: 0.25 },
+    { name: "scrub", plant: LEGUME, rot: COMPLETE_ROTTER, ammonia: 0.05 },
+    { name: "delta", plant: GRASS, rot: SAPROPHYTE, ammonia: 0.7 },
+    { name: "wetland", plant: MOSS, rot: SAPROPHYTE, ammonia: 0.8 },
+    { name: "heath", plant: LEGUME, rot: SAPROPHYTE, ammonia: 0.08 },
+    { name: "coast", plant: GRASS, rot: COMPLETE_ROTTER, ammonia: 0.45 },
   ];
 
-  // a chain with one long way round, so the far ends are genuinely far
-  const routes: Route[] = [
-    { from: 0, to: 1, conductance: 0.30, cost: 0.35 },
-    { from: 1, to: 2, conductance: 0.28, cost: 0.40 },
-    { from: 2, to: 3, conductance: 0.34, cost: 0.30 },
-    { from: 3, to: 4, conductance: 0.26, cost: 0.45 },
-    { from: 4, to: 5, conductance: 0.22, cost: 0.55 },
-    { from: 5, to: 0, conductance: 0.10, cost: 0.90 },
-  ];
+  const places = RECIPES.map((r, i) =>
+    new Ecosystem({
+      seed: SEED + 1 + i,
+      name: r.name,
+      // latitude sweeps pole to pole, so seasons actually differ across the world
+      latitude: 1 - (2 * i) / (RECIPES.length - 1),
+      plantGenome: r.plant,
+      fungusGenome: r.rot,
+      plants: 22,
+      fungi: 34,
+      grazers: 14,
+      width: 48,
+      volume: 90 + (i % 4) * 18,
+      soilAmmonia: r.ammonia,
+    }),
+  );
+
+  // A RING, plus two chords. A plain ring makes every place equidistant from every other
+  // in the way that matters, and the interesting question — whether a failure in one place
+  // reaches the far side — needs somewhere that is genuinely far and somewhere that is
+  // unexpectedly near.
+  const routes: Route[] = [];
+  for (let i = 0; i < places.length; i++) {
+    routes.push({
+      from: i,
+      to: (i + 1) % places.length,
+      conductance: 0.22 + (i % 3) * 0.06,
+      cost: 0.3 + (i % 4) * 0.12,
+    });
+  }
+  routes.push({ from: 0, to: 6, conductance: 0.08, cost: 0.95 });
+  routes.push({ from: 3, to: 9, conductance: 0.12, cost: 0.7 });
 
   return new Geography({ places, routes, seed: SEED, dayLength: 90, yearLength: 8, seasonality: 0.75 });
 }

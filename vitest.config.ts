@@ -19,7 +19,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["test/**/*.test.ts", "muslin/**/*.test.ts"],
+    include: ["test/**/*.test.ts", "muslin/**/*.test.ts", "scratch/**/*.test.ts"],
     // Ecosystem tests run real simulations over thousands of ticks, and got slower the
     // moment organisms could reproduce — populations grow, so there is more world to
     // tick. The default 5s budget started failing them as timeouts, which reads as a

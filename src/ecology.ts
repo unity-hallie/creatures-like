@@ -324,11 +324,26 @@ export class Ecosystem {
   }
 
   /** What this organism's own genes say it consumes from outside itself. */
-  #uptakeFor(resident: Resident): void {
+  #uptakeFor(resident: Resident, absorbsSolids = true): void {
     const wanted = resident.organism.expressed.reactantSpecies;
     const patch = this.patches[resident.at];
     for (const [id, where] of ENVIRONMENT) {
       if (!wanted.has(id)) continue;
+      // AN ANIMAL DOES NOT ABSORB FOOD THROUGH ITS SKIN.
+      //
+      // This loop was a second, always-on feeding channel: because a grazer's genome lists
+      // starch as a reactant (amylase consumes it), every grazer silently drank 30% of its
+      // patch's starch every tick — no forage threshold, no bite, no `eat` action, no meal
+      // recorded. The deliberate eating mechanic I had been tuning sat on top of a siphon
+      // that kept concentrations pinned below the level at which food could even be sensed.
+      // Measured: 11 of 48,662 grazer-ticks ever saw forage above threshold, and the moment
+      // the last grazer died, patch starch went from 0.01 to 1.73.
+      //
+      // Absorption is right for a fungus, which secretes enzymes outward and takes up what
+      // dissolves, and for a plant drawing ammonia from soil. It is wrong for an animal,
+      // which has to go and get it. So solids are gated on strategy, and gases are not:
+      // everything breathes.
+      if (!absorbsSolids && where === "patch" && id !== CHEMS.light) continue;
       const source = where === "air" ? this.air : patch.soup;
       transfer(source, resident.organism.soup, id, source.get(id) * UPTAKE);
     }
@@ -459,8 +474,27 @@ export class Ecosystem {
   #breed(resident: Resident, cohort: Resident[]): void {
     if (cohort.length >= CROWD_LIMIT) return;
     const parent = resident.organism;
-    const reserves = parent.soup.get(CHEMS.atp) + parent.soup.get(CHEMS.glucose) + parent.soup.get(CHEMS.cellulose);
-    if (reserves < BREEDING_THRESHOLD) return;
+    // Reserves count what this body can OPEN, not what it contains. A grazer holds no
+    // cellulase — `accessTo(cellulose)` reads 0 for it and nonzero for a rotter — so a gut
+    // packed with grazed cellulose used to read as capital and fund a child on it. That is
+    // the same lock-and-key that governs digestion, asked one question earlier: wealth is
+    // not what you are carrying, it is what you can get into.
+    const reserves = [CHEMS.atp, CHEMS.glucose, CHEMS.cellulose].reduce(
+      (total, id) => total + parent.soup.get(id) * parent.accessTo(id),
+      0,
+    );
+    // The threshold reads what the parent keeps, not what it holds. Read the other way, a
+    // well-fed newborn bred every tick until it had given nearly everything away: measured
+    // at six breeds in six consecutive ticks, adenine 16 → 1.21, ×0.65 each time, all of it
+    // before the creature had eaten once. 14 founders became 290 births and 309 deaths by
+    // tick 500 with no food income to fund any of it.
+    //
+    // Still a capacity rather than a cooldown, and still a fact about a body: an animal that
+    // starves itself to term leaves no parent, and the reserve a child needs to survive on
+    // is the same reserve its parent needs. Whether reproduction runs away from here is now
+    // a question for the food supply, which is where CROWD_LIMIT's comment always said the
+    // limit belonged.
+    if (reserves * (1 - DOWRY) < BREEDING_THRESHOLD) return;
 
     const stream = this.dice.at("mutation");
     // MITOSIS, and only mitosis. Recombination happens elsewhere and on its own schedule
@@ -509,6 +543,17 @@ export class Ecosystem {
     }
   }
 
+  /** Structure sheds. Fruit does NOT fall here, and the reason is worth keeping.
+   *
+   *  I added a FRUITFALL rate to this method, believing a plant's starch had no way to the
+   *  ground short of death. It has one: `#egest` moves whatever an organism cannot open
+   *  back to the patch, and a plant's own amylase does not fully open its own starch, so
+   *  fruit already falls — under the name waste, by the accessibility rule that governs
+   *  every other solid. Adding a second channel measured WORSE than adding none (ground
+   *  starch 0.86 against 1.09 at tick 60), because it drains the pool egestion draws from.
+   *
+   *  The general shape: before adding a mechanism, check whether an existing rule already
+   *  implies it. Accessibility was doing this job the whole time. */
   #litterfall(resident: Resident): void {
     const patch = this.patches[resident.at];
     for (const structural of [CHEMS.cellulose, CHEMS.lignin]) {
@@ -598,10 +643,20 @@ export class Ecosystem {
       else { this.#transform(resident); this.#breed(resident, this.plants); }
     }
 
-    for (const grazer of this.grazers) {
+    // A SNAPSHOT, because a tick is a slice of simultaneous time.
+    //
+    // `#breed` pushes onto this same array, and `for...of` walks a live array — so a
+    // newborn used to get a whole tick of life inside the tick it was born: forage,
+    // metabolise, and breed again. Its child got one too. The cascade ran until reserves
+    // fell under threshold, all before the tick ended. Measured: 14 grazers became 120 —
+    // the crowd cap — in NINE ticks, then 199 of them starved together by tick 200.
+    //
+    // The plants loop never had this, purely by accident: `canopy` is a sorted copy. The
+    // accident was doing real work, so it stops being one here.
+    for (const grazer of [...this.grazers]) {
       if (!grazer.organism.alive) continue;
       this.#forage(grazer);
-      this.#uptakeFor(grazer);
+      this.#uptakeFor(grazer, false);
       grazer.organism.digest();
       grazer.organism.secrete();
       grazer.organism.react();
@@ -624,7 +679,7 @@ export class Ecosystem {
       }
     }
 
-    for (const resident of this.fungi) {
+    for (const resident of [...this.fungi]) {
       if (!resident.organism.alive) continue;
       this.#uptakeFor(resident);
       resident.organism.metabolise();

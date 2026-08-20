@@ -38,6 +38,10 @@ export function bind(expressed: Expressed, soup: Soup): Binding {
   };
 }
 
+/** How fast expectation catches up with experience. Slow enough that a rare meal still
+ *  reads as a surprise; fast enough that a persistent change stops being one. */
+const BASELINE_RATE = 0.02;
+
 export class Lobe {
   readonly senses: readonly Sense[];
   readonly actions: readonly Action[];
@@ -47,6 +51,19 @@ export class Lobe {
   readonly weights: number[][];
   /** eligibility traces, same shape — what fired recently and still awaits a verdict */
   readonly traces: number[][];
+  /** A slow-moving baseline for the verdict: what this creature has come to expect.
+   *
+   *  Consolidation reads the verdict's PHASIC component — how far it departs from this —
+   *  rather than its level, which is how dopamine actually works: a burst above tonic
+   *  baseline carries the signal, and a steady level carries none.
+   *
+   *  Without it, an always-on signal swamps a rare one no matter how weak it is. Measured:
+   *  `fuelLow` is nonzero on 99.97% of ticks, so cortisol sat at ~1.6 forever while
+   *  dopamine stayed 0.000. The verdict was negative on 148 ticks of 150, every action was
+   *  punished about equally, all three hit the weight clamp by tick 90, and activation went
+   *  identical across actions — a three-way tie that no amount of drive could break. The
+   *  creature had learned that being alive is bad, which is true and useless. */
+  #baseline = 0;
 
   constructor(expressed: Expressed, spawn: Stream) {
     const gene = expressed.lobe;
@@ -98,8 +115,11 @@ export class Lobe {
    *  judging which way it swings. */
   consolidate(binding: Binding): void {
     const verdict = binding.learning - binding.punishment;
-    if (verdict === 0) return;
-    const gain = this.#learnRate * (1 + binding.plasticity) * verdict;
+    // what departs from expectation is what teaches; chronic anything teaches nothing
+    const surprise = verdict - this.#baseline;
+    this.#baseline += (verdict - this.#baseline) * BASELINE_RATE;
+    if (surprise === 0) return;
+    const gain = this.#learnRate * (1 + binding.plasticity) * surprise;
     for (let a = 0; a < this.weights.length; a++) {
       for (let s = 0; s < this.senses.length; s++) {
         const next = this.weights[a][s] + gain * this.traces[a][s];
