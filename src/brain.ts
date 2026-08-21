@@ -75,6 +75,32 @@ export class Lobe {
     this.#learnRate = gene.learnRate;
     this.#traceDecay = gene.traceDecay;
     // Small seeded weights: a newborn holds opinions, just weak and arbitrary ones.
+    //
+    // ARBITRARY ON PURPOSE, and it costs something real, so here is the receipt. In the
+    // ecosystem a grazer sensed food on 99 of its 118 ticks, walked at random, ate nothing,
+    // and died with `left` and `right` 0.05 apart. Reward-gated learning cannot start where
+    // the reward requires the behaviour: it must reach food to be taught to reach food.
+    //
+    // So I built the obvious fix — an `instinct` gene seeding these weights with an
+    // inherited prior, mutable, reversible, Creatures had them. Swept its strength:
+    //
+    //   weight | early  late | knockout late | pop across 5 seeds
+    //     0.00 | 0.74  0.95  |         0.43  | 1
+    //     0.10 | 0.69  0.99  |         0.44  | 0
+    //     0.35 | 0.92  0.76  |         0.75  | 1
+    //     1.00 | 1.00  0.76  |         1.00  | 2
+    //
+    // Read the last column first: population never moves. Then read the third: by weight
+    // 0.5 the learning knockout — a creature that CANNOT learn — scores as well as wild
+    // type, because the reflex already decided everything and consolidation had nothing
+    // left to contribute. `learning.test.ts` went red on exactly that, which is what it is
+    // for. And above 0.2 the creature gets WORSE over its life (late < early): a prior
+    // strong enough to help is strong enough to fight what experience is trying to write.
+    //
+    // The mechanism was sound and bought nothing, so it went back out. The instinct gene is
+    // not the missing piece; something that limits the population is, and it is not the
+    // food supply either (see test/bootstrap.test.ts). Build this again only with a
+    // measurement showing the population move.
     this.weights = gene.actions.map(() => gene.senses.map(() => (spawn.next() * 2 - 1) * 0.05));
     this.traces = gene.actions.map(() => gene.senses.map(() => 0));
   }
