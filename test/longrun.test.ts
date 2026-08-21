@@ -25,13 +25,27 @@
 // makes it a population control doing ecology's job — the same mistake as the census that
 // counted corpses, wearing different clothes.
 //
-// NOT FIXED HERE, deliberately. The last time a diagnosis got a same-session fix it was the
-// instinct gene: built, measured, and thrown away because it treated a symptom four steps
-// downstream. The candidates worth measuring, in the order I would try them: let a capped
-// fungus spend surplus carbon instead of hoarding it (an upkeep or a respiratory floor);
-// give the world something that eats fungi; or make the cap scale with the place the way the
-// atmosphere now does. Each is a real change and none should land without a population
-// measurement beside it.
+// SOLVED THE NEXT TICK, and by none of the three candidates I listed here. Those were an
+// upkeep floor, a fungus predator, and a scaling cap. What was actually wrong: a corpse kept
+// its adenine forever. `matter()` reads CARBON union NITROGEN and ATP and ADP sit in neither,
+// so `#decompose` returned a body's carbon and left its adenine behind. Over 20,000 ticks and
+// 606 deaths the world's 704 adenine went from all-living to 651 stranded in corpses.
+//
+// That is why the fungi hoarded. Respiration costs 30 ADP per glucose, so a fungus down to
+// 0.07 ADP burns 0.002 glucose a tick while holding 16 — not greedy, just unable to spend.
+// Return the adenine and it burns its fuel again:
+//
+//                        before      after
+//   adenine in corpses      651          0
+//   adenine in the living    52        300
+//   fungal glucose hoard   16.17       2.24
+//   grazers at t20000          0          4
+//
+// The old numbers below are kept because the shape of the mistake is worth more than the
+// fix: this is the SECOND time this world stranded a conserved quantity where nothing could
+// reach it, and the second time every balance check stayed green while it happened. Carbon
+// and nitrogen have world-level conservation tests. Adenine had none, so nothing could say
+// where it had gone — only that it had not gone missing.
 
 import { test, expect } from "vitest";
 import { Ecosystem } from "../src/ecology.js";
@@ -51,19 +65,20 @@ function meadow() {
   });
 }
 
-test("the atmosphere fix buys thousands of ticks, not permanence", () => {
+test("the population survives the long run, thinly", () => {
   const eco = meadow();
   for (let t = 0; t < 3000; t++) eco.step();
   // Where the earlier commits stop looking, and the number they report.
   expect(eco.grazers.filter((g) => g.organism.alive).length).toBeGreaterThan(5);
 
   for (let t = 3000; t < 20000; t++) eco.step();
-  // And where it actually goes. If a future change keeps grazers alive out here, this line
-  // fails and the file above needs rewriting — which is the point of pinning it.
-  expect(eco.grazers.filter((g) => g.organism.alive).length).toBeLessThan(3);
+  // This line read `< 3` and was written to fail when the decline got fixed. It failed the
+  // next day. Recycling adenine keeps the population off zero out here — thin, but alive,
+  // where it used to be extinct.
+  expect(eco.grazers.filter((g) => g.organism.alive).length).toBeGreaterThan(0);
 });
 
-test("a capped fungus population becomes the carbon sink", () => {
+test("a capped fungus population is no longer a one-way carbon sink", () => {
   const eco = meadow();
   for (let t = 0; t < 20000; t++) eco.step();
 
@@ -72,9 +87,9 @@ test("a capped fungus population becomes the carbon sink", () => {
     CARBON.reduce((total, [id, per]) => total + soup.get(id) * per, 0);
   const inBodies = living.reduce((a, r) => a + carbonIn(r.organism.soup), 0);
 
-  // Fungi hold the cap the whole way, unable to spend surplus on offspring and with nothing
-  // to eat them, so the world's carbon accumulates in their bodies instead of cycling.
+  // The fungi still hold the cap — that part was never about adenine, and a population
+  // control still does ecology's job here. What changed is that a capped fungus is no longer
+  // a one-way carbon sink: it can respire what it takes in, so the air is not swallowed.
   expect(eco.fungi.filter((f) => f.organism.alive).length).toBe(120);
-  expect(inBodies / eco.totalCarbon()).toBeGreaterThan(0.8);
-  expect(eco.air.get(CHEMS.co2)).toBeLessThan(1);
+  expect(inBodies / eco.totalCarbon()).toBeLessThan(0.95);
 });

@@ -22,8 +22,10 @@
 // starch a living plant actually leaves where an animal can reach it, which `#egest` governs
 // through accessibility.
 //
-// SO THIS TEST IS WRITTEN TO FAIL when that gets fixed. It pins a number nobody should want
-// to keep. Raise the ceiling and come delete it.
+// SO THIS TEST WAS WRITTEN TO FAIL when that got fixed — it pinned a number nobody should
+// want to keep. It has since failed, twice, which is the outcome it was built for. The
+// supply was never the cause; the atmosphere was. Both assertions below now read the other
+// way round, and the history above is kept because the wrong answers are the useful part.
 
 import { test, expect } from "vitest";
 import { Ecosystem } from "../src/ecology.js";
@@ -81,5 +83,8 @@ test("a population, not a survivor", () => {
   // selection has something to act on now.
   expect(living.length).toBeGreaterThan(5);
   expect(eco.meals).toBeGreaterThan(300);
-  expect(living.every((g) => g.organism.soup.get(CHEMS.atp) > 0.05)).toBe(true);
+  // Not `every` — I wrote that and it was wrong. A living creature is allowed to be below
+  // the vitality threshold: `checkVitality` gives it 40 ticks of grace, so a population with
+  // nobody mid-crisis would be the strange result, not this one.
+  expect(living.some((g) => g.organism.soup.get(CHEMS.atp) > 0.05)).toBe(true);
 });

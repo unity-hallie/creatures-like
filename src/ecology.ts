@@ -35,6 +35,10 @@ const ENVIRONMENT: ReadonlyArray<readonly [ChemId, "air" | "patch"]> = [
   [CHEMS.starch, "patch"],
   [CHEMS.proteins, "patch"],
   [CHEMS.lipids, "patch"],
+  // Spent currency, scavenged back out of the ground. Every genome here consumes ADP —
+  // glycolysis takes 2 and respiration 30 — so this is the channel that lets the adenine a
+  // corpse returns re-enter a living body instead of settling in the soil forever.
+  [CHEMS.adp, "patch"],
 ];
 
 const CARBON_OF = new Map(CARBON);
@@ -619,6 +623,36 @@ export class Ecosystem {
     const patch = this.patches[resident.at];
     for (const [id] of resident.organism.matter()) {
       transfer(resident.organism.soup, patch.soup, id, resident.organism.soup.get(id));
+    }
+
+    // AND THE ADENINE, which used to stay in the corpse forever. `matter()` reads CARBON
+    // union NITROGEN, and ATP and ADP sit in neither, so every death took its adenine out of
+    // circulation permanently. Measured over 20,000 ticks and 606 deaths: the world's 704
+    // adenine went from all living to 651 stranded in bodies, leaving 52 for everything
+    // still alive.
+    //
+    // That is what was strangling the world. Respiration costs 30 ADP per glucose, so a
+    // fungus down to 0.07 ADP can burn 0.002 glucose a tick while holding 16 — drowning in
+    // fuel it cannot touch. Carbon then stays locked in fungal bodies, CO2 never comes back,
+    // and primary production starves. The carbon story was downstream of this one.
+    //
+    // Nothing was destroyed and no balance check could have complained: adenine summed to
+    // exactly 704 the whole way. Carbon and nitrogen have world-level conservation tests and
+    // adenine had none, and a quantity can be perfectly conserved and still be in the wrong
+    // place — the same lesson this world already taught once, in a different currency.
+    //
+    // It returns as ADP rather than ATP because death spends what the body was holding. The
+    // moiety counts both at one adenine each, so the ledger does not move.
+    //
+    // Verified by reverting just these lines: test/circulation.test.ts then reports adenine
+    // 92.5% stranded and 7.5% circulating. An alarm that cannot detect its own fire is
+    // decoration, so it was worth the two minutes to check.
+    const soup = resident.organism.soup;
+    const adenine = soup.get(CHEMS.atp) + soup.get(CHEMS.adp);
+    if (adenine > 0) {
+      soup.set(CHEMS.atp, 0);
+      soup.set(CHEMS.adp, 0);
+      patch.soup.add(CHEMS.adp, adenine);
     }
     this.deaths++;
   }

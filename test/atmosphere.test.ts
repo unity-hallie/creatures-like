@@ -107,7 +107,7 @@ test("what each decomposer can open, stated as a fact rather than read off the s
   expect(opens(LIGNIN_EATER, CHEMS.starch)).toBe(0);
 });
 
-test("the atmosphere is spent within fifty ticks, and sunlight piles up unused", () => {
+test("the atmosphere is spent within fifty ticks, then recovers", () => {
   const eco = meadow(SAPROPHYTE);
   const co2AtStart = eco.air.get(CHEMS.co2);
   expect(co2AtStart).toBeGreaterThan(50);
@@ -116,8 +116,12 @@ test("the atmosphere is spent within fifty ticks, and sunlight piles up unused",
   expect(eco.air.get(CHEMS.co2)).toBeLessThan(co2AtStart / 10);
 
   for (let t = 50; t < 3000; t++) eco.step();
-  // It never comes back, and the light nobody can use keeps arriving.
-  expect(eco.air.get(CHEMS.co2)).toBeLessThan(1);
+  // AND THEN IT COMES BACK, which it never used to. This line read `< 1` for as long as
+  // adenine stayed locked in corpses: fungi without ADP cannot respire, so carbon stopped
+  // returning to the air. Recycling a corpse's adenine lets them burn their fuel again and
+  // CO2 recovers to a few units instead of pinning at zero. The drawdown above is still real
+  // — a young world spends its air fast — but it is now a dip rather than a floor.
+  expect(eco.air.get(CHEMS.co2)).toBeGreaterThan(1);
   expect(eco.patches.reduce((a, p) => a + p.soup.get(CHEMS.light), 0)).toBeGreaterThan(20);
 });
 
