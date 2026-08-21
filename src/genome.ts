@@ -299,6 +299,43 @@ export const WILD_TYPE: Genome = [
     reaction: { slug: "amylase", reactants: [term(CHEMS.starch, 1)], products: [term(CHEMS.glucose, 1)], rate: 0.05 },
   },
   {
+    // Protease. Opens the nitrogen half of the diet, which this animal had no way into at
+    // all: it carried `proteolysis` and no route to a single unit of protein, so the gene
+    // had never once fired in the history of this world.
+    //
+    // The food was already lying there. A plant cannot open its own protein either, so it
+    // egests what it builds — 3.065 on the ground across 24 patches, six of them over the
+    // forage threshold, untouched because nothing in the animal kingdom held a key.
+    kind: "enzyme",
+    keys: keysFor(LOCKS.proteins),
+    reaction: {
+      slug: "protease",
+      reactants: [term(CHEMS.proteins, 1)],
+      products: [term(CHEMS.glucose, 1), term(CHEMS.ammonia, 1)],
+      rate: 0.04,
+    },
+  },
+  // AND NOT THE WAY BACK UP, which is the harder half and is not here. `protein-synthesis`
+  // (glucose + ammonia -> proteins, rate 0.02) was written, measured and taken out, because
+  // it and the protease together dismantle the claim this project rests on:
+  //
+  //                      wild   knockout   gap
+  //    neither           0.949     0.431  0.518
+  //    protease only     0.958     0.496  0.462
+  //    synthesis only    0.973     0.531  0.442
+  //    both              0.989     0.798  0.191
+  //
+  // Neither gene alone costs much. Together they cost almost everything, because together
+  // they are a CYCLE: the protease turns protein into glucose and ammonia, synthesis turns
+  // glucose and ammonia back into protein. That is a buffer, and a buffered creature does not
+  // need to learn — it survives its own bad decisions. A learning knockout goes from hopeless
+  // at 0.431 to nearly competent at 0.798 with no ability to consolidate anything.
+  //
+  // Which is a real finding about reserves rather than a bug: resilience is what makes
+  // reward-driven learning optional, and this world is built to insist that behaviour comes
+  // from reward chemistry. So an animal here still has no anatomy, bodies are still not worth
+  // preying on, and buying either would cost the thesis. That trade wants a person, not me.
+  {
     kind: "reaction",
     reaction: {
       slug: "glycolysis",
