@@ -41,6 +41,17 @@
 //   fungal glucose hoard   16.17       2.24
 //   grazers at t20000          0          4
 //
+// CONFIRMED WORLD-WIDE, at the surface this project is meant to be read through. Rendering
+// the twelve-place sim shows FUN 120 in every single biome at two different ticks — the
+// fungal cap is not an artefact of this one 24-patch meadow, it binds everywhere, and FLA
+// sits at 120 in most places too. Ground lignin climbs in all twelve.
+//
+// Two things the picture corrected rather than confirmed, both of which I would have called
+// bugs from a console. Boreal grazers fall 50 to 4 across 600 ticks — that is POLAR NIGHT,
+// not a crash: boreal sits at latitude 1.00 and its SUN reads 2.07 then 0.00 as the year
+// rolls over. And world carbon reads 209572.00 at both ticks, so the whole twelve-place
+// ledger is exact while all of this happens.
+//
 // The old numbers below are kept because the shape of the mistake is worth more than the
 // fix: this is the SECOND time this world stranded a conserved quantity where nothing could
 // reach it, and the second time every balance check stayed green while it happened. Carbon
