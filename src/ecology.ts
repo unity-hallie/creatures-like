@@ -464,6 +464,24 @@ export class Ecosystem {
       // so without a gut symbiont it comes out the other end for a fungus to deal with
       taken += transfer(patch.soup, grazer.organism.soup, CHEMS.cellulose, taken * 0.4);
 
+      // NOT NUCLEOTIDES, and the reason is measured. Animals have no adenine route at all:
+      // `#uptakeFor` runs with absorbsSolids false for them, so a lineage gets a birth dowry,
+      // halves it into every child, and returns the rest to soil it can never draw on. Fungi
+      // and plants hold steady near 2.0 adenine each; grazers sit at 0.78 while 404 ADP piles
+      // up in the ground.
+      //
+      // Adding `transfer(patch.soup, ..., CHEMS.adp, taken * 0.4)` here — nucleotides swallowed
+      // with the mouthful, the same shape as the cellulose line — does fix that asymmetry, and
+      // it is a net loss. Adenine per grazer 0.62 -> 1.16, population across five seeds 21 ->
+      // 18 at tick 20,000, and CO2 at tick 3000 falls 3.76 -> 0.99. It takes ADP from the
+      // decomposers, who were turning it into respiration and returned carbon, and hands it to
+      // animals that do not convert it into anything.
+      //
+      // So adenine is NOT what limits the grazers, and the soil pool is not idle just because
+      // animals cannot reach it. What the detritus half of this world actually lacks is
+      // something that eats litter and can itself be eaten — a detritivore, which wants the
+      // hardcoded `this.plants` loop below opened up rather than another line here.
+
       // GRAZING. With no fruit on the ground, take the plant itself. This is why grass
       // grows from the base: the growing point sits below the mouth, so a grazed grass is
       // pruned rather than killed, and outgrows the loss if its growth rate can.
