@@ -133,6 +133,31 @@ const GUT_CAPACITY = 1.4;
 /** Sunlight delivered per patch per tick. Crosses the boundary from outside the model,
  *  like food and unlike everything else — see the file header. */
 const LIGHT_PER_TICK = 1.4;
+/** Starting atmosphere per patch — and the number that decides how much life this world can
+ *  carry. Everything else was downstream of it.
+ *
+ *  HOW THIN IT WAS. A settled world handed 60 CO2 drew down 59.7 of it inside ten ticks and
+ *  nearly doubled its living biomass; an untouched control gained 4 over a hundred ticks.
+ *  Throughput ran near 6 CO2/tick against a standing pool of 0.045 — a buffer holding well
+ *  under ONE TICK of demand, so primary production was throttled to whatever decomposition
+ *  happened to release that tick, and nothing above the plants could get a share of it.
+ *
+ *  Thickening the air is the only change measured this session that moved the population,
+ *  across five seeds at 3000 ticks:
+ *
+ *    x1 (old)    6 grazers, 17.8 plants        x20    15 grazers, 36.4 plants
+ *    x5          7 grazers, 23.2 plants        x100  147 grazers, 45.8 plants
+ *
+ *  x100 lands near 29 grazers per world instead of 1, which is the difference between an
+ *  ecology and a deathbed — selection needs a population to act on, and one animal is not
+ *  one. A buffer under a tick of demand is degenerate on physical grounds too: Earth's air
+ *  holds decades of photosynthetic demand, and even x100 is only about a hundred ticks.
+ *
+ *  A BALANCE DECISION, flagged as one. It changes how the world feels, and it is two numbers
+ *  to change back. Air is still spent down to near zero at every setting — the world eats
+ *  whatever it is given — so read these as buffer depth, not as surplus. */
+const O2_PER_PATCH = 1000 / 3;
+const CO2_PER_PATCH = 500;
 /** Fraction of a plant's structure shed as litter each tick. */
 const LITTERFALL = 0.035;
 /** Fraction of available substrate an organism absorbs per tick. */
@@ -201,8 +226,20 @@ export class Ecosystem {
     this.latitude = opts.latitude ?? 0;
     this.name = opts.name ?? "place";
 
-    this.air.set(CHEMS.o2, opts.oxygen ?? 40);
-    this.air.set(CHEMS.co2, 60);
+    // AN ATMOSPHERE IS A VOLUME, so it scales with the place like everything else here.
+    //
+    // Light arrives per patch. Soil ammonia is set per patch. The air was a flat 60 CO2 and
+    // 40 O2 no matter how wide the world got — so a 96-patch world had four times the light,
+    // four times the soil nitrogen, four times the plants, and the same air. Scaling the
+    // world up made it MORE crowded per unit atmosphere, not less, which is why every
+    // experiment that grew the world measured worse instead of better.
+    //
+    // The per-patch figures below reproduce the old totals exactly at the default width of
+    // 12, so a default world is unchanged and only wider ones differ. `opts.oxygen` stays an
+    // absolute override: geography's wind tests set two places to different pressures on
+    // purpose, and that has to keep meaning what it says.
+    this.air.set(CHEMS.o2, opts.oxygen ?? O2_PER_PATCH * width);
+    this.air.set(CHEMS.co2, CO2_PER_PATCH * width);
     // plenty of nitrogen, almost none of it usable — the planet's standing joke
     this.air.set(CHEMS.n2, opts.dinitrogen ?? 30);
     const ammonia = opts.soilAmmonia ?? 0.5;

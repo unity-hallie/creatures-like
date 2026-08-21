@@ -55,24 +55,31 @@ test("the meadow settles on the same tiny number of grazers however it starts", 
     }
     for (let t = 0; t < 3000; t++) eco.step();
     const alive = eco.grazers.filter((g) => g.organism.alive).length;
-    // Extinction belongs in this range now, and that is a change worth naming. While dead
-    // residents still held their seats in the census, breeding switched off around tick 60
-    // and the lone survivor was PRESERVED by the freeze — nothing could be born to compete
-    // with it. Counting only the living unblocked reproduction (world births 242 -> 1524),
-    // and some seeds now overshoot and take the whole population down instead of coasting on
-    // one animal forever. A world that can die out is more honest than one held still.
-    expect(alive).toBeLessThan(4);
+    // RESOLVED. This test spent most of its life asserting `alive < 4`, pinning a meadow that
+    // could carry one animal however it was stocked. The cause was never the stocking: the
+    // atmosphere held under one tick of CO2 demand, so primary production was throttled to a
+    // trickle and everything above the plants starved. Giving the air a real buffer took this
+    // from about 1 grazer per world to about 30, and the old ceiling is now a floor.
+    expect(alive).toBeGreaterThan(5);
   }
 });
 
-test("the last grazer starves for company, not for food", () => {
+test("a population, not a survivor", () => {
   const eco = meadow(3);
   for (let t = 0; t < 3000; t++) eco.step();
-  const survivor = eco.grazers.find((g) => g.organism.alive);
-  expect(survivor).toBeDefined();
-  // A world too poor to feed anyone would leave its last animal on the edge of the vitality
-  // threshold (0.05). This one leaves it fat, which is the whole finding: the food exists,
-  // and there is exactly not very much of it.
-  expect(survivor!.organism.soup.get(CHEMS.atp)).toBeGreaterThan(1);
+  const living = eco.grazers.filter((g) => g.organism.alive);
+
+  // This test used to be called "the last grazer starves for company, not for food", and it
+  // asserted that the single survivor ended FAT — ATP above 1 — because a world too poor to
+  // feed anyone would leave its last animal scraping the vitality threshold instead. That
+  // reading was right and its conclusion was half wrong. The food was indeed there; what was
+  // missing was the CO2 to keep making more of it once the survivor's neighbours were gone.
+  //
+  // With a real atmospheric buffer there is no last grazer to inspect. There is a crowd, and
+  // its members run leaner than that lone survivor did (ATP near 0.7 rather than 2.2) because
+  // they are sharing a world instead of inheriting one. Leaner and many beats fat and alone:
+  // selection has something to act on now.
+  expect(living.length).toBeGreaterThan(5);
   expect(eco.meals).toBeGreaterThan(300);
+  expect(living.every((g) => g.organism.soup.get(CHEMS.atp) > 0.05)).toBe(true);
 });
