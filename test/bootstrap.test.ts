@@ -92,10 +92,13 @@ test("the food is there — they are starving in a full larder", () => {
   const ground = eco.patches.map((p) => p.soup.get(CHEMS.starch));
   const feedable = ground.filter((s) => s >= 0.05).length;
 
-  // Food accumulates on the ground, unreached, while the population collapses. If a future
-  // change makes grazers actually forage, this stock should DROP and the population rise —
-  // so read a failure here as "check which of the two moved" rather than as a regression.
-  expect(ground.reduce((a, b) => a + b, 0)).toBeGreaterThan(5);
-  expect(feedable).toBeGreaterThan(3);
+  // WHAT MOVED, when the census stopped counting corpses (see #breed). This test used to
+  // read `ground > 5`, because 12.13 starch sat on the ground unreached. Unblocking breeding
+  // put six times as many grazers through the world and they ate it down to 2.85 — so the
+  // larder emptied exactly as this comment predicted it would, and the population did not
+  // rise anyway. The stock moved; the survivors did not. That is the finding, and the number
+  // below now pins the eaten-down level rather than the untouched one.
+  expect(ground.reduce((a, b) => a + b, 0)).toBeLessThan(5);
+  expect(feedable).toBeGreaterThan(0);
   expect(eco.grazers.filter((g) => g.organism.alive).length).toBeLessThan(4);
 });

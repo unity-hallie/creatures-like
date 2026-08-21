@@ -472,7 +472,22 @@ export class Ecosystem {
    * rather than things I choose.
    */
   #breed(resident: Resident, cohort: Resident[]): void {
-    if (cohort.length >= CROWD_LIMIT) return;
+    // THE CENSUS COUNTS THE LIVING. It used to read `cohort.length`, and nothing ever
+    // removes a dead resident from these arrays — so every corpse kept its seat forever.
+    //
+    // A cohort reached 120 by about tick 60, and from that moment breeding was disabled for
+    // good, however many of the 120 were dead. Measured at tick 3000: one living grazer, 119
+    // corpses, reserves 2.20 and comfortably over the breeding gate, unable to reproduce.
+    // World births went 240 by tick 200 and 242 by tick 3000 — two births in 2,800 ticks, in
+    // a world that was still eating.
+    //
+    // This is why six earlier hypotheses all measured as no-ops. More food, weaker founders,
+    // fewer competitors, innate reflexes — none of them could matter, because after tick 60
+    // the world could only lose. A population that cannot breed does not have an ecology; it
+    // has a half-life.
+    let living = 0;
+    for (const other of cohort) if (other.organism.alive) living++;
+    if (living >= CROWD_LIMIT) return;
     const parent = resident.organism;
     // Reserves count what this body can OPEN, not what it contains. A grazer holds no
     // cellulase — `accessTo(cellulose)` reads 0 for it and nonzero for a rotter — so a gut

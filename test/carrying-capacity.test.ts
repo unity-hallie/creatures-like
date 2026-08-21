@@ -55,7 +55,12 @@ test("the meadow settles on the same tiny number of grazers however it starts", 
     }
     for (let t = 0; t < 3000; t++) eco.step();
     const alive = eco.grazers.filter((g) => g.organism.alive).length;
-    expect(alive).toBeGreaterThan(0);
+    // Extinction belongs in this range now, and that is a change worth naming. While dead
+    // residents still held their seats in the census, breeding switched off around tick 60
+    // and the lone survivor was PRESERVED by the freeze — nothing could be born to compete
+    // with it. Counting only the living unblocked reproduction (world births 242 -> 1524),
+    // and some seeds now overshoot and take the whole population down instead of coasting on
+    // one animal forever. A world that can die out is more honest than one held still.
     expect(alive).toBeLessThan(4);
   }
 });
