@@ -412,22 +412,51 @@ export class Ecosystem {
     }
   }
 
-  /** What a grazer can see: fruit to either side, fruit underfoot, and its own fuel
-   *  state. Identical in shape to the single-creature rig, but the food is real — a
-   *  patch has starch because a plant put it there out of air and light. */
-  /** What a grazer can see right now. Exposed because the training view has to show the
-   *  same numbers the lobe is actually reading — a second implementation would drift. */
+  /** The most of any one thing lying in this patch that THIS body has a key for.
+   *
+   *  WHAT AN ANIMAL EATS IS DERIVED, NOT CONFIGURED — which the file header has claimed
+   *  since it was written, and which was true of uptake and egestion and false right here.
+   *  Both perception and eating read `CHEMS.starch` by name, so a grazer was an animal that
+   *  ate starch because the ecology said so rather than because its genome said so, and no
+   *  genome could describe an animal that ate anything else. A detritivore was unwritable.
+   *
+   *  Asking accessibility instead makes the diet a genome fact, the same lock and key that
+   *  already governs digestion. A wild grazer opens starch at 1.00 and cellulose at 0.00, so
+   *  it goes on eating exactly what it ate. Give a genome cellulase and it can make a meal of
+   *  litter — no branch here changes, and nothing anywhere holds a table of who eats what.
+   *
+   *  Returns null when nothing here clears the threshold. */
+  #edibleAt(organism: Organism, at: number): { chem: ChemId; amount: number } | null {
+    const soup = this.patches[at].soup;
+    let best: { chem: ChemId; amount: number } | null = null;
+    for (const [substrate] of SUBSTRATE_LOCKS) {
+      if (organism.accessTo(substrate) <= 0) continue;
+      const amount = soup.get(substrate);
+      if (amount < FORAGE_THRESHOLD) continue;
+      if (!best || amount > best.amount) best = { chem: substrate, amount };
+    }
+    return best;
+  }
+
+  /** What a grazer can see right now: food to either side, food underfoot, and its own fuel
+   *  state. Exposed because the training view has to show the same numbers the lobe is
+   *  actually reading — a second implementation would drift.
+   *
+   *  Reads `#edibleAt`, which is the same call `#forage` makes. PERCEPTION AND ACTION HAVE TO
+   *  AGREE: they disagreed once already, when senses reported no food below the threshold and
+   *  eating took whatever was there, and a creature scored 119 meals in 120 ticks off patches
+   *  its own eyes called empty. Two implementations of "is there food here" is how that
+   *  happens, so now there is one. */
   senseOf(grazer: Grazer): number[] {
-    const patch = this.patches[grazer.at];
     let nearest: number | null = null;
     for (let i = 0; i < this.patches.length; i++) {
-      if (this.patches[i].soup.get(CHEMS.starch) < FORAGE_THRESHOLD) continue;
+      if (!this.#edibleAt(grazer.organism, i)) continue;
       if (nearest === null || Math.abs(i - grazer.at) < Math.abs(nearest - grazer.at)) nearest = i;
     }
     return [
       nearest !== null && nearest < grazer.at ? 1 : 0,
       nearest !== null && nearest > grazer.at ? 1 : 0,
-      patch.soup.get(CHEMS.starch) >= FORAGE_THRESHOLD ? 1 : 0,
+      this.#edibleAt(grazer.organism, grazer.at) ? 1 : 0,
       Math.max(0, 1 - grazer.organism.soup.get(CHEMS.glucose) / 0.6),
     ];
   }
@@ -455,10 +484,13 @@ export class Ecosystem {
       // successful meal, 119 times in 120 ticks. The gut capacity below never bound because
       // the mouthfuls were minuscule. A world where the wrong action always works has no
       // choices in it, and nothing to train.
-      const worthEating =
-        patch.soup.get(CHEMS.starch) >= FORAGE_THRESHOLD && grazer.organism.soup.get(CHEMS.starch) < GUT_CAPACITY;
+      // The same `#edibleAt` the senses read, so the two cannot drift apart. A gut fills on
+      // whatever it swallowed, so capacity is read against that substrate rather than against
+      // starch by name — otherwise an animal that ate anything else would never feel full.
+      const edible = this.#edibleAt(grazer.organism, grazer.at);
+      const worthEating = edible !== null && grazer.organism.soup.get(edible.chem) < GUT_CAPACITY;
       let taken = worthEating
-        ? transfer(patch.soup, grazer.organism.soup, CHEMS.starch, patch.soup.get(CHEMS.starch) * BITE)
+        ? transfer(patch.soup, grazer.organism.soup, edible.chem, edible.amount * BITE)
         : 0;
       // a mouthful takes the surrounding structure too — which no vertebrate can open,
       // so without a gut symbiont it comes out the other end for a fungus to deal with

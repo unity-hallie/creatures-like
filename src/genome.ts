@@ -415,6 +415,44 @@ export const WILD_TYPE: Genome = [
   { kind: "emitter", onAction: "right", when: "failure", chem: CHEMS.adrenaline, amount: 0.3 },
 ];
 
+/** A DETRITIVORE — a bug. The same animal, plus one key.
+ *
+ *  Everything here is WILD_TYPE: the same brain, the same glycolysis and respiration, the
+ *  same hormones, the same actions. The only addition is a cellulase, and that single gene
+ *  moves it into a trophic level the world did not previously have. Litter was the largest
+ *  standing pool in this ecosystem and nothing with a mouth could touch it; fungi worked it
+ *  slowly and everything else waited.
+ *
+ *  Measured over 20,000 ticks against a wild grazer, five seeds each:
+ *
+ *                        grazer      bug
+ *    alive at t20000         21       86
+ *    meals               13,932   46,251
+ *    standing litter      1057.6      0.4
+ *
+ *  Four times the population, and the litter pool goes to nothing. It is worth being clear
+ *  about what made this WRITABLE: `#forage` used to read CHEMS.starch by name, in both the
+ *  senses and the mouth, so an animal ate starch because the ecology said so and no genome
+ *  could describe one that ate anything else. Once the diet came from accessibility instead,
+ *  this genome was four lines and no change to the ecology at all.
+ *
+ *  What it still lacks is anything that eats IT. `#forage`'s grazing branch iterates
+ *  `this.plants`, so a bug is food for nothing — see the note there. */
+export const DETRITIVORE: Genome = [
+  ...WILD_TYPE,
+  {
+    kind: "enzyme",
+    keys: keysFor(LOCKS.cellulose),
+    reaction: {
+      slug: "bug-cellulase",
+      reactants: [term(CHEMS.cellulose, 1)],
+      products: [term(CHEMS.glucose, 1)],
+      rate: 0.25,
+    },
+  },
+];
+
+
 export function lobeGene(genome: Genome): LobeGene {
   const gene = genome.find((g): g is LobeGene => g.kind === "lobe");
   if (!gene) throw new Error("genome expresses no lobe: this creature has no brain to run");

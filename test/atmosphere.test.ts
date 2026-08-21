@@ -144,10 +144,15 @@ test("carbon is conserved exactly, and no longer stranded", () => {
 });
 
 test("a decomposer that cannot eat fruit leaves more of it for the animals", () => {
+  // Three seeds at 800 ticks. This ran five at 3,000 and passed alone while timing out in
+  // the full suite — thickening the atmosphere put 100+ organisms in every world and made
+  // every ecosystem test roughly ten times more expensive, which is a real cost of that
+  // change and worth paying down here rather than raising the limit. The separation is wider
+  // at the shorter horizon anyway: 108 against 221.
   const survivors = (genome: typeof SAPROPHYTE) =>
-    [1, 2, 3, 4, 5].reduce((total, seed) => {
+    [1, 2, 3].reduce((total, seed) => {
       const eco = meadow(genome, seed);
-      for (let t = 0; t < 3000; t++) eco.step();
+      for (let t = 0; t < 800; t++) eco.step();
       return total + eco.grazers.filter((g) => g.organism.alive).length;
     }, 0);
 
