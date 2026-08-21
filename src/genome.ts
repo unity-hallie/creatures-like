@@ -489,6 +489,46 @@ export const DETRITIVORE: Genome = [
   },
 ];
 
+/** PACE OF LIFE, as a scalar over every rate in a genome.
+ *
+ *  Metabolic scale needs no machinery here, and that is the point of the flat gene list: a
+ *  fast animal is not a different KIND of thing with a size field, it is the same recipe read
+ *  quickly. Multiply the rates and the whole creature speeds up together — digestion, the
+ *  cost of moving, glycolysis, respiration, how fast its signals fade — because those are the
+ *  only things a metabolism is made of.
+ *
+ *  Measured over 3000 ticks, three seeds, median age at death:
+ *
+ *    x0.25   lifespan 1869   239 deaths   231 alive
+ *    x1      lifespan  160   386 deaths    80 alive
+ *    x4      lifespan   76  4854 deaths     9 alive
+ *
+ *  A 24x range in lifespan out of one number, and it is the number that decides whether
+ *  anything in this world is worth learning. A day is 90 ticks. The x4 animal dies before one
+ *  day finishes, so day and night are GENERATIONAL events it can only adapt to genetically.
+ *  The x0.25 animal sees twenty-one days and three years, so the same cycle falls inside its
+ *  life where experience could in principle track it. Same world, opposite timescales, and
+ *  nothing separating them but how fast the recipe is read.
+ *
+ *  `mutate` already jitters every one of these rates, so pace is not a setting a lineage is
+ *  stuck with — it is something the world can search. */
+export function paced(genome: Genome, scale: number): Genome {
+  return genome.map((gene): Gene => {
+    if (gene.kind === "reaction" || gene.kind === "cost" || gene.kind === "enzyme")
+      return { ...gene, reaction: { ...gene.reaction, rate: gene.reaction.rate * scale } };
+    // a decay halflife is a rate wearing different clothes: what fades per tick is (1-h)
+    if (gene.kind === "decay")
+      return { ...gene, halfLife: Math.min(0.999, Math.max(0, 1 - (1 - gene.halfLife) * scale)) };
+    return gene;
+  });
+}
+
+/** Lives fast, dies young — median lifespan about 76 ticks, under one day. */
+export const SWIFT: Genome = paced(WILD_TYPE, 4);
+/** Lives slow — median lifespan about 1869 ticks, twenty-one days and three years. */
+export const PLODDER: Genome = paced(WILD_TYPE, 0.25);
+
+
 
 export function lobeGene(genome: Genome): LobeGene {
   const gene = genome.find((g): g is LobeGene => g.kind === "lobe");

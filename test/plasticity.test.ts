@@ -30,6 +30,18 @@
 // The claim that does NOT survive is that this ecosystem selects for the capacity. It does
 // not, and a model of evolution that quietly assumed it would was wrong about its own world.
 //
+// A CAVEAT I OWE THIS FILE. The numbers above come from a meadow with CONSTANT SUN — the
+// plain Ecosystem holds `light` fixed and only Geography moves it — so I measured "nothing
+// worth learning" in a world where nothing varies, which is close to a tautology. Rerun under
+// a real sky, three places at day length 90 with seasons: 166 for the learner against 267 for
+// the knockout. The finding survives; my reason for it did not.
+//
+// The reason is that nothing SENSABLE varies. The senses are foodLeft, foodRight, foodHere and
+// fuelLow, and the mapping from those to the right action never changes — food on the left
+// always means go left. Day and night move the light, which no creature here can sense at all.
+// So learning is a one-time acquisition of a permanent truth, and a permanent truth belongs in
+// the genome. That is the argument for a low-rank innate prior, arrived at from the other end.
+//
 // Two ways to make plasticity earn its keep, both real experiments and neither run yet:
 // give the world variation faster than a lifetime (weather that shifts within a few hundred
 // ticks, food that moves), or make an individual's lifetime long relative to how fast its
