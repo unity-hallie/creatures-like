@@ -489,12 +489,18 @@ export class Ecosystem {
       // starch by name — otherwise an animal that ate anything else would never feel full.
       const edible = this.#edibleAt(grazer.organism, grazer.at);
       const worthEating = edible !== null && grazer.organism.soup.get(edible.chem) < GUT_CAPACITY;
-      let taken = worthEating
+      // `#edibleAt` only returns something this gut holds a key for, so everything the first
+      // transfer takes counts as nutrition. The incidental structure below does not.
+      let openable = worthEating
         ? transfer(patch.soup, grazer.organism.soup, edible.chem, edible.amount * BITE)
         : 0;
+      let taken = openable;
       // a mouthful takes the surrounding structure too — which no vertebrate can open,
       // so without a gut symbiont it comes out the other end for a fungus to deal with
-      taken += transfer(patch.soup, grazer.organism.soup, CHEMS.cellulose, taken * 0.4);
+      const structure = transfer(patch.soup, grazer.organism.soup, CHEMS.cellulose, taken * 0.4);
+      taken += structure;
+      // a bug holds a cellulase, so for it the surrounding structure IS the meal
+      if (grazer.organism.accessTo(CHEMS.cellulose) > 0) openable += structure;
 
       // NOT NUCLEOTIDES, and the reason is measured. Animals have no adenine route at all:
       // `#uptakeFor` runs with absorbsSolids false for them, so a lineage gets a birth dowry,
@@ -514,22 +520,49 @@ export class Ecosystem {
       // something that eats litter and can itself be eaten — a detritivore, which wants the
       // hardcoded `this.plants` loop below opened up rather than another line here.
 
-      // GRAZING. With no fruit on the ground, take the plant itself. This is why grass
-      // grows from the base: the growing point sits below the mouth, so a grazed grass is
-      // pruned rather than killed, and outgrows the loss if its growth rate can.
+      // BITING SOMETHING ALIVE. With no fruit on the ground, take the body instead. This is
+      // why grass grows from the base: the growing point sits below the mouth, so a grazed
+      // grass is pruned rather than killed, and outgrows the loss if its growth rate can.
+      //
+      // A BODY IS NOT EDIBLE BECAUSE OF WHICH ARRAY IT LIVES IN. This loop walked
+      // `this.plants` and took cellulose by name — the same hardcoded-cohort mistake the
+      // patch side just shed, one level up. It made carnivory unwritable: a genome could
+      // hold every protease in the world and still find nothing to use it on, because the
+      // only body reachable from here was a plant's and the only thing taken was structure.
+      //
+      // Walking every resident and taking what the target's body actually holds costs no
+      // more branches and makes the diet a genome fact on both sides of the mouth.
+      let nutrition = openable;
       if (taken <= 0) {
-        for (const plant of this.plants) {
-          if (plant.at !== grazer.at || !plant.organism.alive) continue;
-          taken += transfer(plant.organism.soup, grazer.organism.soup, CHEMS.cellulose, plant.organism.soup.get(CHEMS.cellulose) * BITE);
-          // and whatever the plant spent on defending itself comes along with the bite
+        for (const other of this.residents()) {
+          if (other === (grazer as Resident) || other.at !== grazer.at || !other.organism.alive) continue;
+          for (const [substrate] of SUBSTRATE_LOCKS) {
+            const bite = transfer(other.organism.soup, grazer.organism.soup, substrate, other.organism.soup.get(substrate) * BITE);
+            taken += bite;
+            // what the mouth took and this gut can actually open — see the success gate below
+            if (grazer.organism.accessTo(substrate) > 0) nutrition += bite;
+          }
+          // and whatever it spent on defending itself comes along with the bite
           for (const toxin of [CHEMS.solanine, CHEMS.cucurbitacin, CHEMS.capsaicin]) {
-            transfer(plant.organism.soup, grazer.organism.soup, toxin, plant.organism.soup.get(toxin) * BITE);
+            transfer(other.organism.soup, grazer.organism.soup, toxin, other.organism.soup.get(toxin) * BITE);
           }
           break;
         }
       }
 
-      if (taken >= MOUTHFUL) {
+      // A MEAL HAS TO FEED YOU. Success used to read mass alone, so a grazer that filled its
+      // gut with cellulose it holds no key for scored a meal, fired dopamine, and was taught
+      // to do it again — measured at 212 of 8,484 meals, small but pure noise in the learning
+      // signal, and the whole reward for a predator too weak to open its prey.
+      //
+      // Reading nutrition instead costs nothing where the two agree, which is most of the
+      // time, and stops the world rewarding an animal for swallowing what it cannot use.
+      //
+      // The threshold is MOUTHFUL, not zero. `nutrition > 0` was the first version and it is
+      // the same hole one step in: a plant carries a trace of starch, so a grazer that bit a
+      // plant for a gutful of cellulose picked up 0.001 of something openable and the whole
+      // worthless mouthful scored. What has to be worth a mouthful is the part you can use.
+      if (nutrition >= MOUTHFUL) {
         succeeded = true;
         grazer.meals++;
         this.meals++;

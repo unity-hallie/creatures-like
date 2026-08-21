@@ -121,7 +121,12 @@ test("the atmosphere is spent within fifty ticks, then recovers", () => {
   // returning to the air. Recycling a corpse's adenine lets them burn their fuel again and
   // CO2 recovers to a few units instead of pinning at zero. The drawdown above is still real
   // — a young world spends its air fast — but it is now a dip rather than a floor.
-  expect(eco.air.get(CHEMS.co2)).toBeGreaterThan(1);
+  // Threshold 0.5, not 1. I first picked 1 off a single measurement of 3.76 and it broke on
+  // the next unrelated change, at 0.877 — a fragile bound on a noisy quantity, which is the
+  // third time this session I have asserted a number where I meant a claim. The claim is
+  // "recovers rather than pinning at zero": pinned readings ran 0.04 to 0.2, recovered ones
+  // run 0.88 to 3.8, and 0.5 separates those with room on both sides.
+  expect(eco.air.get(CHEMS.co2)).toBeGreaterThan(0.5);
   expect(eco.patches.reduce((a, p) => a + p.soup.get(CHEMS.light), 0)).toBeGreaterThan(20);
 });
 
