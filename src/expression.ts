@@ -28,6 +28,7 @@ import {
   type LobeGene,
   type PsycheGene,
   type ReceptorGene,
+  type SenseGene,
   type ResolutionGene,
   type VocabularyGene,
   type ReceptorTarget,
@@ -46,6 +47,10 @@ export interface Expressed {
   endocrine: readonly EndocrineGene[];
   /** how what is in mind reaches the bloodstream */
   psyche: readonly PsycheGene[];
+  /** what this body can sense, in the order the lobe wires them. A brain is wired from the
+   *  sense genes the genome actually expresses, so gaining or losing a sense is a mutation
+   *  like any other rather than an edit to a list of names. */
+  senses: readonly SenseGene[];
   /** innate, meaningless tokens this genome supplies */
   vocabulary: readonly string[];
   /** how far this mind walks before meaning fades */
@@ -114,6 +119,7 @@ export function express(genome: Genome): Expressed {
     enzymes,
     endocrine: genome.filter((g): g is EndocrineGene => g.kind === "endocrine"),
     psyche: genome.filter((g): g is PsycheGene => g.kind === "psyche"),
+    senses: genome.filter((g): g is SenseGene => g.kind === "sense"),
     vocabulary: genome.filter((g): g is VocabularyGene => g.kind === "vocabulary").map((g) => g.token),
     horizon: genome.find((g): g is ResolutionGene => g.kind === "resolution")?.horizon ?? 6,
     allReactions: allReactions,

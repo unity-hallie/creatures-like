@@ -70,8 +70,12 @@ test("a brain that is always unhappy can still change its mind", () => {
   // Pinned-and-tied and pinned-and-decided look identical to a clamp count, so the clamp
   // count was never the thing worth asserting. The claim underneath was that the brain can
   // still DISCRIMINATE, so assert that instead.
+  // BY POSITION, not by name. A sense's name is derived from its keys, and `mutate` drifts
+  // keys — so a creature two generations down has a differently-named nose and `weightOf`
+  // returns NaN for it. Names are handles for a human reading a trainer; the wiring is the
+  // index. Slots 0 and 1 are the left and right smell genes, in the order the genome lists.
   const spreads = live.map((g) =>
-    Math.abs(g.lobe.weightOf("left", "foodLeft") - g.lobe.weightOf("right", "foodRight")),
+    Math.abs(g.lobe.weights[g.lobe.actions.indexOf("left")][0] - g.lobe.weights[g.lobe.actions.indexOf("right")][1]),
   );
   expect(Math.max(...spreads)).toBeGreaterThan(0.25);
 });

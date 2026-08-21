@@ -105,7 +105,7 @@ test("a grazer learns which way food lies, with no innate prior at all", () => {
   // everywhere, steering earns little, so a fed creature has no reason to separate its
   // turns. Asserting on one individual measured that accident, not the claim.
   const spread = (g: (typeof eco.grazers)[number]) =>
-    Math.abs(g.lobe.weightOf("left", "foodLeft") - g.lobe.weightOf("right", "foodRight"));
+    Math.abs(g.lobe.weights[g.lobe.actions.indexOf("left")][0] - g.lobe.weights[g.lobe.actions.indexOf("right")][1]);
   const living = eco.grazers.filter((g) => g.organism.alive);
   expect(Math.max(...living.map(spread))).toBeGreaterThan(0.5);
 });

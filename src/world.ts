@@ -18,7 +18,8 @@ import { Soup, type ChemId } from "./chemistry.js";
 import { bind, Lobe } from "./brain.js";
 import { express, type Expressed } from "./expression.js";
 import { Organism } from "./organism.js";
-import { CHEMS, MOIETIES, type Action, type Genome, type Sense, SENSES, WILD_TYPE } from "./genome.js";
+import { CHEMS, MOIETIES, type Action, type Genome, WILD_TYPE } from "./genome.js";
+import { readSenses } from "./senses.js";
 import { applyReaction, assertBalanced, layNetwork } from "./stoichiometry.js";
 import { Dice } from "./dice.js";
 
@@ -168,18 +169,19 @@ export class World {
     return best;
   }
 
+  /** What this creature's own receptors make of where it is. The trainer places food by
+   *  fiat rather than growing it, so a patch here is a scratch soup holding one unit of
+   *  starch — enough for a nose to find, and read through the same `readSenses` the
+   *  ecosystem uses. One implementation, so the rig and the world cannot disagree. */
   sense(): number[] {
-    const soup = this.soup.get();
-    const nearest = this.nearestFood();
-    // fuelLow reads blood sugar, inverted. Hunger is not a substance here — it is what
-    // low glucose feels like from inside the loop.
-    const reading: Record<Sense, number> = {
-      foodLeft: nearest !== null && nearest < this.position ? 1 : 0,
-      foodRight: nearest !== null && nearest > this.position ? 1 : 0,
-      foodHere: this.food.has(this.position) ? 1 : 0,
-      fuelLow: Math.max(0, 1 - soup.get(CHEMS.glucose) / 0.6),
-    };
-    return SENSES.map((s) => reading[s]);
+    const here = new Soup([[CHEMS.starch, 1]]);
+    const empty = new Soup();
+    return readSenses(this.expressed.senses, {
+      self: this.soup.get(),
+      at: this.position,
+      soupAt: (i) => (i < 0 || i >= this.width ? undefined : this.food.has(i) ? here : empty),
+      places: this.width,
+    });
   }
 
   step(): TickReport {

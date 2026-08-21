@@ -15,7 +15,7 @@
 
 import { Ecosystem } from "../src/ecology.js";
 import { GRASS, SAPROPHYTE } from "../src/flora.js";
-import { CHEMS, SENSES } from "../src/genome.js";
+import { CHEMS } from "../src/genome.js";
 import { bind } from "../src/brain.js";
 import { Idiolect, feeling, pneuma, think, hear, type PneumaId } from "../src/pneuma.js";
 import { Dice } from "../src/dice.js";
@@ -92,7 +92,7 @@ export class TrainingWorld {
     const mind = this.mindOf(id);
     // its present context: the senses that are actually firing, as words
     const sensed = this.eco.senseOf(grazer);
-    const context = SENSES.filter((_, i) => sensed[i] > 0.5).map((s) => pneuma(`sense:${s}`));
+    const context = grazer.lobe.senses.filter((_, i) => sensed[i] > 0.5).map((s) => pneuma(`sense:${s}`));
     hear(mind, pneuma(token), context, this.dice.at("tiebreak"));
     // and a word in mind moves the body only through hormones
     grazer.organism.feel(feeling(mind, think(mind, [pneuma(token), ...context])));
@@ -107,7 +107,7 @@ export class TrainingWorld {
     const sensed = this.eco.senseOf(grazer);
     const mind = this.minds.get(id);
     const active: PneumaId[] = mind
-      ? think(mind, SENSES.filter((_, i) => sensed[i] > 0.5).map((s) => pneuma(`sense:${s}`)))
+      ? think(mind, grazer.lobe.senses.filter((_, i) => sensed[i] > 0.5).map((s) => pneuma(`sense:${s}`)))
       : [];
 
     const soup: Record<string, number> = {};
@@ -124,7 +124,9 @@ export class TrainingWorld {
       age: organism.age,
       soup,
       binding: bind(organism.expressed, organism.soup),
-      senses: SENSES.map((name, i) => ({ name, value: sensed[i] ?? 0 })),
+      // the lobe names its own senses, derived from the sense genes it was wired from —
+      // so a creature with a different nose shows different rows here without any edit
+      senses: grazer.lobe.senses.map((name, i) => ({ name, value: sensed[i] ?? 0 })),
       actions: [...grazer.lobe.actions],
       weights: grazer.lobe.weights.map((row) => [...row]),
       traces: grazer.lobe.traces.map((row) => [...row]),

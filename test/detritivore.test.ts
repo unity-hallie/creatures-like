@@ -63,17 +63,23 @@ test("a grazer standing on litter it cannot open still sees an empty patch", () 
   patch.soup.set(CHEMS.starch, 0);
   patch.soup.set(CHEMS.cellulose, 5);
 
-  // foodHere is index 2. Five units of cellulose underfoot reads as nothing, because this
-  // body holds no key for it — perception follows the same rule the mouth does, which is the
-  // agreement this file lost once and paid for.
+  // Slot 2 is the "here" smell. Five units of cellulose underfoot read as NOTHING to a
+  // starch-shaped nose — perception follows the same lock-and-key the mouth does, which is
+  // the agreement this file lost once and paid for.
+  //
+  // A reading is a saturated float now rather than a 0/1 flag: x/(1+x), so five units through
+  // a perfect key reads 0.833 and not 1. Receptors saturate, and an unbounded sense would let
+  // a big enough pile of anything swamp every weight in the lobe.
   expect(eco.senseOf(grazer)[2]).toBe(0);
 
+  // And the bug smells what it eats — its three smell genes are cellulose-shaped where the
+  // grazer's are starch-shaped, which is the diet showing up in the nose as well as the gut.
   const bugWorld = meadow(DETRITIVORE, 3);
   const bug = bugWorld.grazers[0];
   const bugPatch = bugWorld.patches[bug.at];
   bugPatch.soup.set(CHEMS.starch, 0);
   bugPatch.soup.set(CHEMS.cellulose, 5);
-  expect(bugWorld.senseOf(bug)[2]).toBe(1);
+  expect(bugWorld.senseOf(bug)[2]).toBeGreaterThan(0.5);
 });
 
 test("a detritivore clears the litter and carries a bigger population", () => {

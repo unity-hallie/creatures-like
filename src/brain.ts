@@ -9,7 +9,7 @@
 import type { Soup } from "./chemistry.js";
 import type { Stream } from "./dice.js";
 import { readReceptors, type Expressed } from "./expression.js";
-import type { Action, Sense } from "./genome.js";
+import { senseName, type Action, type Sense } from "./genome.js";
 
 export interface Binding {
   /** consolidation gate — "that was good" */
@@ -70,7 +70,11 @@ export class Lobe {
     // Plants and fungi legitimately express no lobe; a thing being given a brain must
     // have the genes for one.
     if (!gene) throw new Error("genome expresses no lobe: this creature has no brain to run");
-    this.senses = gene.senses;
+    // A brain is wired from the sense GENES this genome expresses, in their order — not from
+    // a list of names on the lobe gene. Gaining, losing or retuning a sense is then an
+    // ordinary mutation instead of an edit to a hardcoded enum, and a creature with no sense
+    // genes has a brain that reads nothing, which is the honest result rather than a crash.
+    this.senses = expressed.senses.map(senseName);
     this.actions = gene.actions;
     this.#learnRate = gene.learnRate;
     this.#traceDecay = gene.traceDecay;
@@ -101,8 +105,8 @@ export class Lobe {
     // not the missing piece; something that limits the population is, and it is not the
     // food supply either (see test/bootstrap.test.ts). Build this again only with a
     // measurement showing the population move.
-    this.weights = gene.actions.map(() => gene.senses.map(() => (spawn.next() * 2 - 1) * 0.05));
-    this.traces = gene.actions.map(() => gene.senses.map(() => 0));
+    this.weights = gene.actions.map(() => this.senses.map(() => (spawn.next() * 2 - 1) * 0.05));
+    this.traces = gene.actions.map(() => this.senses.map(() => 0));
   }
 
   /** Picks an action, then marks every synapse that contributed to it. Selection reads

@@ -13,6 +13,7 @@
 
 import { Soup, transfer, type ChemId } from "./chemistry.js";
 import { applyReaction } from "./stoichiometry.js";
+import { readSenses, type Surroundings } from "./senses.js";
 import { Dice } from "./dice.js";
 import { CARBON, CHEMS, NITROGEN, SUBSTRATE_LOCKS, competenceOf, mutate, recombine, shed, type Action, type Genome, type Packet } from "./genome.js";
 import { FUNGUS, PLANT } from "./flora.js";
@@ -438,27 +439,24 @@ export class Ecosystem {
     return best;
   }
 
-  /** What a grazer can see right now: food to either side, food underfoot, and its own fuel
-   *  state. Exposed because the training view has to show the same numbers the lobe is
-   *  actually reading — a second implementation would drift.
+  /** What a grazer's own receptors make of where it stands. Exposed because the training
+   *  view has to show the same numbers the lobe is actually reading — a second implementation
+   *  would drift, which is what `src/senses.ts` exists to stop.
    *
-   *  Reads `#edibleAt`, which is the same call `#forage` makes. PERCEPTION AND ACTION HAVE TO
-   *  AGREE: they disagreed once already, when senses reported no food below the threshold and
-   *  eating took whatever was there, and a creature scored 119 meals in 120 ticks off patches
-   *  its own eyes called empty. Two implementations of "is there food here" is how that
-   *  happens, so now there is one. */
+   *  The readings are whatever this genome's sense genes say they are, in their order. A
+   *  creature with a different nose sees a different world through the same call.
+   */
   senseOf(grazer: Grazer): number[] {
-    let nearest: number | null = null;
-    for (let i = 0; i < this.patches.length; i++) {
-      if (!this.#edibleAt(grazer.organism, i)) continue;
-      if (nearest === null || Math.abs(i - grazer.at) < Math.abs(nearest - grazer.at)) nearest = i;
-    }
-    return [
-      nearest !== null && nearest < grazer.at ? 1 : 0,
-      nearest !== null && nearest > grazer.at ? 1 : 0,
-      this.#edibleAt(grazer.organism, grazer.at) ? 1 : 0,
-      Math.max(0, 1 - grazer.organism.soup.get(CHEMS.glucose) / 0.6),
-    ];
+    return readSenses(grazer.organism.expressed.senses, this.#around(grazer));
+  }
+
+  #around(grazer: Grazer): Surroundings {
+    return {
+      self: grazer.organism.soup,
+      at: grazer.at,
+      soupAt: (i) => this.patches[i]?.soup,
+      places: this.patches.length,
+    };
   }
 
   #forage(grazer: Grazer): void {

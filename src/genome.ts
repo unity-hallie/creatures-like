@@ -167,12 +167,68 @@ export const SUBSTRATE_LOCKS: ReadonlyArray<readonly [ChemId, Lock]> = [
 
 export const LOCK_OF = new Map(SUBSTRATE_LOCKS);
 
-/** What the creature can sense and do. The lobe gene names which of these it wires, so
- *  the brain's shape stays a genetic fact rather than a hard-coded one. */
-export const SENSES = ["foodLeft", "foodRight", "foodHere", "fuelLow"] as const;
+/** What a creature can do. Still a short closed list, because an action has to correspond to
+ *  something the world knows how to carry out. */
 export const ACTIONS = ["left", "right", "eat"] as const;
-export type Sense = (typeof SENSES)[number];
 export type Action = (typeof ACTIONS)[number];
+
+/** Where a sense reads from. `self` is the creature's own soup — an interoceptor, which is
+ *  how a body knows it is hungry. The rest read the world, and the two bearings fall off with
+ *  distance, because that is what makes a gradient a gradient. */
+export type SenseFrom = "self" | "here" | "left" | "right";
+
+/** ONE SENSE, AS A GENE — and for smell, the same lock and key that governs eating.
+ *
+ *  This used to be `SENSES = ["foodLeft", "foodRight", "foodHere", "fuelLow"]`: a closed list
+ *  of four, hardcoded, with `senseOf` computing each by name. The same table-of-meanings this
+ *  file's header disowns, and the last one left after diet and predation shed theirs.
+ *
+ *  The names smuggled in conclusions. `foodLeft` asserts that what lies to the left is FOOD,
+ *  when a nose reports a SHAPE and edibility is a separate question — which is the whole
+ *  reason an animal can be poisoned. `fuelLow` asserts hunger is a primitive, when hunger is
+ *  a hormone level like any other and no body has a special channel for it.
+ *
+ *  So `of` is either a set of motif keys or a single species:
+ *
+ *  KEYS — a smell. Scored against every locked substrate by `accessibility`, exactly as an
+ *  enzyme is scored against what it digests. A receptor shaped for starch's motif also fires,
+ *  weakly, at anything sharing that motif, so similar compounds smell similar and confusion
+ *  is derived rather than declared. Solanine smelling like dinner is not a special case; it is
+ *  what the keys say. Reuse `keysFor(LOCKS.starch)` and a nose is as good as an enzyme's;
+ *  blur the keys and it is a worse nose that fires at more things.
+ *
+ *  A SPECIES — a direct read, for what has no motif structure to match: light, a hormone,
+ *  glucose. A hormone receptor knows one molecule, which is what makes it a hormone. */
+export type SenseGene = {
+  kind: "sense";
+  of: ChemId | Keys;
+  from: SenseFrom;
+  /** scale, and sign. A negative gain reports absence, which is a real receptor. */
+  gain: number;
+};
+
+/** Keys are an array and a ChemId is not, which is the whole discrimination. */
+export const sensesByShape = (of: ChemId | Keys): of is Keys => Array.isArray(of);
+
+/** A sense's identity, for wiring a lobe and for reading its weights back. Derived from the
+ *  gene rather than chosen, so two identical genes address the same synapse. */
+export type Sense = string;
+
+/** A readable, stable handle for one sense — for wiring a lobe, reading its weights back, and
+ *  showing a trainer which synapse it is looking at. Derived from the gene, so two identical
+ *  genes address the same synapse. Names carry no meaning to the model, as ever: only the
+ *  wiring does.
+ *
+ *  AND THEY ARE NOT STABLE UNDER MUTATION, which matters if you are tempted to look one up.
+ *  `mutate` drifts a smell's keys, so two generations down the same nose answers to a
+ *  different name and `Lobe.weightOf` will not find it. That is honest — it IS a different
+ *  nose — but it means the index is the identity and the name is for reading. */
+export function senseName(gene: SenseGene): Sense {
+  const what = sensesByShape(gene.of)
+    ? `smell:${gene.of.map((k) => Math.round(k * 9)).join("")}`
+    : String(gene.of);
+  return `${what}@${gene.from}`;
+}
 
 export type ReceptorTarget =
   /** gates Hebbian consolidation — the binding that makes learning happen at all */
@@ -248,7 +304,6 @@ export type ResolutionGene = { kind: "resolution"; horizon: number };
 export type EmitterGene = { kind: "emitter"; onAction: Action; when: EmitWhen; chem: ChemId; amount: number };
 export type LobeGene = {
   kind: "lobe";
-  senses: readonly Sense[];
   actions: readonly Action[];
   learnRate: number;
   traceDecay: number;
@@ -266,6 +321,7 @@ export type Gene =
   | VocabularyGene
   | ResolutionGene
   | EmitterGene
+  | SenseGene
   | LobeGene;
 
 export type Genome = readonly Gene[];
@@ -287,7 +343,31 @@ const term = (chem: ChemId, coeff: number) => ({ chem, coeff });
  *  Nothing here mentions hunger, because hunger is not a substance. It is what low
  *  glucose feels like from inside the loop. */
 export const WILD_TYPE: Genome = [
-  { kind: "lobe", senses: SENSES, actions: ACTIONS, learnRate: 0.22, traceDecay: 0.7 },
+  { kind: "lobe", actions: ACTIONS, learnRate: 0.22, traceDecay: 0.7 },
+
+  // ── what it can sense ──────────────────────────────────────────────────────
+  //
+  // A NOSE, NOT A FOOD DETECTOR. These three were `foodLeft`, `foodRight` and `foodHere`:
+  // names that asserted what lay out there was food. They are now receptors shaped for
+  // starch's motif, scored by the same `accessibility` that scores an enzyme, which means
+  // they fire at anything sharing that motif and cannot tell dinner from poison. That is
+  // what a nose is, and it is the first thing in this world whose meaning is worth learning
+  // rather than inheriting.
+  { kind: "sense", of: keysFor(LOCKS.starch), from: "left", gain: 1 },
+  { kind: "sense", of: keysFor(LOCKS.starch), from: "right", gain: 1 },
+  { kind: "sense", of: keysFor(LOCKS.starch), from: "here", gain: 1 },
+
+  // Hunger, as a hormone level rather than a special channel. This was `fuelLow`, computed
+  // as 1 - glucose/0.6 by the ecology — a fifth thing the world knew about a body that the
+  // body had no gene for. Cortisol already IS this creature's low-fuel signal: an endocrine
+  // gene secretes it below glucose 0.4, and now an interoceptor reads it back. Nothing is
+  // hardcoded and hunger stays what it always was here, which is a chemical.
+  { kind: "sense", of: CHEMS.cortisol, from: "self", gain: 1 },
+
+  // And the sky. Light has always been a chemical in this world so photosynthesis could be
+  // an ordinary reaction; that makes it sensible for free, and gives an animal something
+  // that varies inside its lifetime.
+  { kind: "sense", of: CHEMS.light, from: "here", gain: 0.5 },
 
   // ── the energy path ────────────────────────────────────────────────────────
   {
@@ -476,7 +556,17 @@ export const WILD_TYPE: Genome = [
  *  What it still lacks is anything that eats IT. `#forage`'s grazing branch iterates
  *  `this.plants`, so a bug is food for nothing — see the note there. */
 export const DETRITIVORE: Genome = [
-  ...WILD_TYPE,
+  // A nose for what it eats. Swapping the three starch-shaped smell genes for cellulose-shaped
+  // ones, because an animal that lives on litter and cannot smell litter is not a detritivore,
+  // it is a grazer with an unusual gut. The sense refactor surfaced this: before it, every
+  // animal's nose was the ecology's `foodLeft`, which silently meant "whatever the world
+  // considers food" and so could never be wrong about a diet.
+  // Mapped in place, not filtered and re-appended: a lobe wires senses in genome order and
+  // its weights are indexed by that order, so moving a sense to the end of the list silently
+  // renumbers every synapse. Retuning a receptor should change what it smells and nothing else.
+  ...WILD_TYPE.map((g) =>
+    g.kind === "sense" && sensesByShape(g.of) ? { ...g, of: keysFor(LOCKS.cellulose) } : g,
+  ),
   {
     kind: "enzyme",
     keys: keysFor(LOCKS.cellulose),
@@ -638,6 +728,14 @@ export function mutate(genome: Genome, stream: Stream, strength = 0.1): Genome {
         return { ...gene, threshold: gene.threshold * jitter(), amount: gene.amount * jitter() };
       case "receptor":
         return { ...gene, gain: gene.gain * jitter() };
+      case "sense":
+        // Gain drifts multiplicatively; a smell's KEYS drift the way an enzyme's do, clamped
+        // to [0,1], because a nose is the same lock-and-key problem and a lineage should be
+        // able to sharpen or blur one exactly as it sharpens a protease.
+        return sensesByShape(gene.of)
+          ? { ...gene, gain: gene.gain * jitter(),
+              of: gene.of.map((k) => Math.min(1, Math.max(0, k + (stream.next() * 2 - 1) * strength))) }
+          : { ...gene, gain: gene.gain * jitter() };
       case "psyche":
         return { ...gene, amount: gene.amount * jitter() };
       case "competence":
